@@ -38,6 +38,37 @@ DIRECTIONAL_STATES = ["Front", "Left", "Right", "Opponent Position"]
 FRONT_RATINGS = ["Close", "OK", "Far"]
 LEFT_RATINGS = ["Too Close", "Close", "OK", "Far", "Too Far"]
 RIGHT_RATINGS = ["Too Close", "Close", "OK", "Far", "Too Far"]
-OPPONENT_POSITION = ["Close Left", "Left", "Close Front", "Front", "Right", "Close Right", "Bottom", "Close Bottom"]
+OPPONENT_POSITION = ["Close Left", "Left", "Close Front", "Front", "Right", "Close Right", "Bottom", "Close Bottom", "Tagged"]
 
-
+def reward_function(player_type, state):
+    if player_type == "tagger":
+        if TAGGER_STUCK:
+            reward = -2
+        elif TIMEOUT: 
+            reward = -2
+        elif state["Left"] in ["Close", "Too Close"] or \
+           state["Right"] in ["Close", "Too Close"] or \
+           state["Front"] in ["Close"]:
+           reward = -1
+        elif state["Opponent Position"] in ["Close Left", "Close Front", "Close Bottom", "Close Right"]:
+            reward = 1
+        elif state["Opponent Position"] == "Tagged":
+            reward = 2
+        else:
+            reward = 0 
+    elif player_type == "taggee":
+        if TAGGEE_STUCK:
+            reward = -2
+        elif TIMEOUT: 
+            reward = 2 # if tagger hasn't caught taggee before the round ends, the taggee wins
+        elif state["Left"] in ["Close", "Too Close"] or \
+           state["Right"] in ["Close", "Too Close"] or \
+           state["Front"] in ["Close"]:
+           reward = -1
+        elif state["Opponent Position"] in ["Close Left", "Close Front", "Close Bottom", "Close Right"]:
+            reward = -1
+        elif state["Opponent Position"] == "Tagged":
+            reward = -2
+        else:
+            reward = 0 
+    return reward 
