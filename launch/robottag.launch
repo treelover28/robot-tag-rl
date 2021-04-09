@@ -1,0 +1,46 @@
+<launch>
+  <arg name="model_tagger" default="$(env TURTLEBOT3_TAGGER)" doc="model type [burger, waffle, waffle_pi]"/>
+  <arg name="x_pos_tagger" default="-0.7"/>
+  <arg name="y_pos_tagger" default="0.0"/>
+  <arg name="z_pos_tagger" default="0.0"/>
+
+  <arg name="model_taggee" default="$(env TURTLEBOT3_TAGGEE)" doc="model type [burger, waffle, waffle_pi]"/>
+  <arg name="x_pos_taggee" default="0.2"/>
+  <arg name="y_pos_taggee" default="0.0"/>
+  <arg name="z_pos_taggee" default="0.0"/>
+  
+
+  <!-- Launch world-->
+  <include file="$(find gazebo_ros)/launch/empty_world.launch">
+    <arg name="world_name" value="$(find robot_tag)/worlds/robottag.world"/>
+    <arg name="paused" value="false"/>
+    <arg name="use_sim_time" value="true"/>
+    <arg name="gui" value="true"/>
+    <arg name="headless" value="false"/>
+    <arg name="debug" value="false"/>
+  </include>  
+
+  <param name="robot_description"
+    command="$(find xacro)/xacro $(find turtlebot3_description)/urdf/turtlebot3_$(arg model_tagger).urdf.xacro"/>
+
+  <!--TAGGER-->
+  <group ns="tagger">
+    <param name="tf_prefix" value="tagger_tf"/>
+    <include file="$(find robot_tag)/launch/one_player.launch">
+      <arg name="initial_pose" value ="-x $(arg x_pos_tagger) -y $(arg y_pos_tagger) -z $(arg z_pos_tagger)" />
+      <arg name="model_name" value="turtlebot3_$(arg model_tagger)"/>
+    </include>
+  </group>
+
+  <param name="robot_description"
+    command="$(find xacro)/xacro.py $(find turtlebot3_description)/urdf/turtlebot3_$(arg model_taggee).urdf.xacro"/>
+  <!--TAGGEE-->
+  <group ns="taggee">
+    <param name="tf_prefix" value="taggee_tf"/>
+    <include file="$(find robot_tag)/launch/one_player.launch">
+      <arg name="initial_pose" value ="-x $(arg x_pos_taggee) -y $(arg y_pos_taggee) -z $(arg z_pos_taggee)" />
+      <arg name="model_name" value="turtlebot3_$(arg model_taggee)"/>
+    </include>
+  </group>
+
+</launch>
