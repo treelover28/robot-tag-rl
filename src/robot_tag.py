@@ -46,12 +46,15 @@ def reward_function(player_type, state):
             reward = -2
         elif TIMEOUT: 
             reward = -2
+        # to avoid obstacles 
         elif state["Left"] in ["Close", "Too Close"] or \
            state["Right"] in ["Close", "Too Close"] or \
            state["Front"] in ["Close"]:
            reward = -1
+        # encourage states where the tagger is close to the taggee 
         elif state["Opponent Position"] in ["Close Left", "Close Front", "Close Bottom", "Close Right"]:
             reward = 1
+        # tagger wins if it successfully tagged the taggee
         elif state["Opponent Position"] == "Tagged":
             reward = 2
         else:
@@ -59,16 +62,21 @@ def reward_function(player_type, state):
     elif player_type == "taggee":
         if TAGGEE_STUCK:
             reward = -2
-        elif TIMEOUT: 
-            reward = 2 # if tagger hasn't caught taggee before the round ends, the taggee wins
+        elif TIMEOUT:
+            # if tagger hasn't caught taggee before the round ends, the taggee wins and gets rewarded 
+            reward = 2 
+        # to also promote obstacle avoidance
         elif state["Left"] in ["Close", "Too Close"] or \
            state["Right"] in ["Close", "Too Close"] or \
            state["Front"] in ["Close"]:
            reward = -1
+        # punish states where the tagee lets the tagger gets too close 
         elif state["Opponent Position"] in ["Close Left", "Close Front", "Close Bottom", "Close Right"]:
             reward = -1
+        # if the taggee gets tagged, it has lost the game
         elif state["Opponent Position"] == "Tagged":
             reward = -2
         else:
             reward = 0 
     return reward 
+
