@@ -67,9 +67,9 @@ def reward_function(player_type, state):
         # to avoid obstacles if target is far away
         elif (state["Left"] in ["Close", "Too Close"] or \
            state["Right"] in ["Close", "Too Close"] or \
-           state["Front"] in ["Close"]) and distance > DISTANCE_FROM_OBSTACLE * 1.2:
+           state["Front"] in ["Close"]) and distance > DISTANCE_FROM_OBSTACLE * 1.3:
            reward = -1
-        elif distance > DISTANCE_FROM_OBSTACLE * 1.2:
+        elif distance > DISTANCE_FROM_OBSTACLE * 1.3:
             reward = -0.25
         # encourage states where the tagger is close to the taggee 
         elif state["Opponent Position"] in ["Close Left", "Close Front", "Close Bottom", "Close Right"]:
@@ -88,9 +88,9 @@ def reward_function(player_type, state):
         # to also promote obstacle avoidance
         elif (state["Left"] in ["Close", "Too Close"] or \
            state["Right"] in ["Close", "Too Close"] or \
-           state["Front"] in ["Close"]) and distance > DISTANCE_FROM_OBSTACLE * 1.2:
+           state["Front"] in ["Close"]) and distance > DISTANCE_FROM_OBSTACLE * 1.3:
            reward = -1
-        elif distance > DISTANCE_FROM_OBSTACLE * 1.2:
+        elif distance > DISTANCE_FROM_OBSTACLE * 1.3:
             reward = 0.25
         # punish states where the tagee lets the tagger gets too close 
         elif state["Opponent Position"] in ["Close Left", "Close Front", "Close Bottom", "Close Right"]:
@@ -130,8 +130,9 @@ def get_opponent_position_rating(player_A, player_B):
     distance = np.linalg.norm(vector_B)
     # print("distance: {}".format(distance))
 
-    if distance <= 0.1:
+    if distance <= DISTANCE_FROM_OBSTACLE:
         return "Tagged"
+
     if 45 <= angle_deg < 135:
        direction_rating = "Front"
     elif 135 <= angle_deg < 180 or -180 <= angle_deg < -135:
@@ -142,7 +143,7 @@ def get_opponent_position_rating(player_A, player_B):
         direction_rating = "Bottom"
 
     distance_rating = ""
-    if distance <= DISTANCE_FROM_OBSTACLE * 1.2:
+    if distance <= DISTANCE_FROM_OBSTACLE * 1.3:
         distance_rating = "Close"
     
     return (distance_rating + " " + direction_rating).strip()
