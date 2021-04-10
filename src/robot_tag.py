@@ -130,6 +130,8 @@ def get_opponent_position_rating(player_A, player_B):
     distance = np.linalg.norm(vector_B)
     # print("distance: {}".format(distance))
 
+    if distance <= 0.1:
+        return "Tagged"
     if 45 <= angle_deg < 135:
        direction_rating = "Front"
     elif 135 <= angle_deg < 180 or -180 <= angle_deg < -135:
