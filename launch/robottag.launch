@@ -1,13 +1,13 @@
 <launch>
-  <arg name="model_tagger" default="$(env TURTLEBOT3_TAGGER)" doc="model type [burger, waffle, waffle_pi]"/>
-  <arg name="x_pos_tagger" default="-0.5"/>
-  <arg name="y_pos_tagger" default="0.0"/>
-  <arg name="z_pos_tagger" default="0.0"/>
+  <arg name="model_pursuer" default="$(env TURTLEBOT3_PURSUER)" doc="model type [burger, waffle, waffle_pi]"/>
+  <arg name="x_pos_pursuer" default="-0.5"/>
+  <arg name="y_pos_pursuer" default="0.0"/>
+  <arg name="z_pos_pursuer" default="0.0"/>
 
-  <arg name="model_taggee" default="$(env TURTLEBOT3_TAGGEE)" doc="model type [burger, waffle, waffle_pi]"/>
-  <arg name="x_pos_taggee" default="0.5"/>
-  <arg name="y_pos_taggee" default="0.0"/>
-  <arg name="z_pos_taggee" default="0.0"/>
+  <arg name="model_evader" default="$(env TURTLEBOT3_EVADER)" doc="model type [burger, waffle, waffle_pi]"/>
+  <arg name="x_pos_evader" default="0.5"/>
+  <arg name="y_pos_evader" default="0.0"/>
+  <arg name="z_pos_evader" default="0.0"/>
   
 
   <!-- Launch world-->
@@ -21,21 +21,23 @@
   </include>  
 
   
-  <!--TAGGER-->
-  <group ns="tagger">
-    <param name="tf_prefix" value="tagger_tf"/>
+  <!--pursuer-->
+  <group ns="pursuer">
+    <param name="tf_prefix" value="pursuer_tf"/>
     <include file="$(find robot_tag)/launch/one_player.launch">
-      <arg name="initial_pose" value ="-x $(arg x_pos_tagger) -y $(arg y_pos_tagger) -z $(arg z_pos_tagger)" />
-      <arg name="model_name" value="turtlebot3_$(arg model_tagger)"/>
+      <arg name="initial_pose" value ="-x $(arg x_pos_pursuer) -y $(arg y_pos_pursuer) -z $(arg z_pos_pursuer)" />
+      <arg name="model_name" value="turtlebot3_$(arg model_pursuer)"/>
+      <arg name="robot_name" value="pursuer"/>
     </include>
   </group>
 
-  <!--TAGGEE-->
-  <group ns="taggee">
-    <param name="tf_prefix" value="taggee_tf"/>
+  <!--evader-->
+  <group ns="evader">
+    <param name="tf_prefix" value="evader_tf"/>
     <include file="$(find robot_tag)/launch/one_player.launch">
-      <arg name="initial_pose" value ="-x $(arg x_pos_taggee) -y $(arg y_pos_taggee) -z $(arg z_pos_taggee)" />
-      <arg name="model_name" value="turtlebot3_$(arg model_taggee)"/>
+      <arg name="initial_pose" value ="-x $(arg x_pos_evader) -y $(arg y_pos_evader) -z $(arg z_pos_evader)" />
+      <arg name="model_name" value="turtlebot3_$(arg model_evader)"/>
+      <arg name="robot_name" value="evader"/>
     </include>
   </group>
 

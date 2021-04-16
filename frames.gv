@@ -1,10 +1,10 @@
 digraph G {
-"tagger_tf/odom" -> "tagger_tf/base_footprint"[label=" Broadcaster: /gazebo\nAverage rate: 30.205\nBuffer length: 4.966\nMost recent transform: 2902.512\nOldest transform: 2897.546\n"];
-"taggee_tf/base_link" -> "taggee_tf/wheel_left_link"[label=" Broadcaster: /taggee/robot_state_publisher\nAverage rate: 30.205\nBuffer length: 4.966\nMost recent transform: 2902.505\nOldest transform: 2897.539\n"];
+"tagger_tf/odom" -> "tagger_tf/base_footprint"[label=" Broadcaster: /gazebo\nAverage rate: 30.205\nBuffer length: 4.966\nMost recent transform: 2902.852\nOldest transform: 2897.886\n"];
+"taggee_tf/base_link" -> "taggee_tf/wheel_left_link"[label=" Broadcaster: /taggee/robot_state_publisher\nAverage rate: 30.205\nBuffer length: 4.966\nMost recent transform: 2902.87\nOldest transform: 2897.904\n"];
 "tagger_tf/camera_depth_frame" -> "tagger_tf/camera_depth_optical_frame"[label=" Broadcaster: /tagger/robot_state_publisher\nAverage rate: 10000.0\nBuffer length: 0.0\nMost recent transform: 0.0\nOldest transform: 0.0\n"];
-"taggee_tf/odom" -> "taggee_tf/base_footprint"[label=" Broadcaster: /gazebo\nAverage rate: 30.205\nBuffer length: 4.966\nMost recent transform: 2902.504\nOldest transform: 2897.538\n"];
-"tagger_tf/base_link" -> "tagger_tf/wheel_right_link"[label=" Broadcaster: /tagger/robot_state_publisher\nAverage rate: 30.211\nBuffer length: 4.965\nMost recent transform: 2902.512\nOldest transform: 2897.547\n"];
-"tagger_tf/base_link" -> "tagger_tf/wheel_left_link"[label=" Broadcaster: /tagger/robot_state_publisher\nAverage rate: 30.211\nBuffer length: 4.965\nMost recent transform: 2902.512\nOldest transform: 2897.547\n"];
+"taggee_tf/odom" -> "taggee_tf/base_footprint"[label=" Broadcaster: /gazebo\nAverage rate: 30.205\nBuffer length: 4.966\nMost recent transform: 2902.869\nOldest transform: 2897.903\n"];
+"tagger_tf/base_link" -> "tagger_tf/wheel_right_link"[label=" Broadcaster: /tagger/robot_state_publisher\nAverage rate: 30.205\nBuffer length: 4.966\nMost recent transform: 2902.853\nOldest transform: 2897.887\n"];
+"tagger_tf/base_link" -> "tagger_tf/wheel_left_link"[label=" Broadcaster: /tagger/robot_state_publisher\nAverage rate: 30.205\nBuffer length: 4.966\nMost recent transform: 2902.853\nOldest transform: 2897.887\n"];
 "tagger_tf/camera_rgb_frame" -> "tagger_tf/camera_rgb_optical_frame"[label=" Broadcaster: /tagger/robot_state_publisher\nAverage rate: 10000.0\nBuffer length: 0.0\nMost recent transform: 0.0\nOldest transform: 0.0\n"];
 "tagger_tf/base_link" -> "tagger_tf/imu_link"[label=" Broadcaster: /tagger/robot_state_publisher\nAverage rate: 10000.0\nBuffer length: 0.0\nMost recent transform: 0.0\nOldest transform: 0.0\n"];
 "tagger_tf/base_footprint" -> "tagger_tf/base_link"[label=" Broadcaster: /tagger/robot_state_publisher\nAverage rate: 10000.0\nBuffer length: 0.0\nMost recent transform: 0.0\nOldest transform: 0.0\n"];
@@ -12,7 +12,7 @@ digraph G {
 "taggee_tf/base_footprint" -> "taggee_tf/base_link"[label=" Broadcaster: /taggee/robot_state_publisher\nAverage rate: 10000.0\nBuffer length: 0.0\nMost recent transform: 0.0\nOldest transform: 0.0\n"];
 "tagger_tf/camera_link" -> "tagger_tf/camera_rgb_frame"[label=" Broadcaster: /tagger/robot_state_publisher\nAverage rate: 10000.0\nBuffer length: 0.0\nMost recent transform: 0.0\nOldest transform: 0.0\n"];
 "taggee_tf/base_link" -> "taggee_tf/caster_back_link"[label=" Broadcaster: /taggee/robot_state_publisher\nAverage rate: 10000.0\nBuffer length: 0.0\nMost recent transform: 0.0\nOldest transform: 0.0\n"];
-"taggee_tf/base_link" -> "taggee_tf/wheel_right_link"[label=" Broadcaster: /taggee/robot_state_publisher\nAverage rate: 30.205\nBuffer length: 4.966\nMost recent transform: 2902.505\nOldest transform: 2897.539\n"];
+"taggee_tf/base_link" -> "taggee_tf/wheel_right_link"[label=" Broadcaster: /taggee/robot_state_publisher\nAverage rate: 30.205\nBuffer length: 4.966\nMost recent transform: 2902.87\nOldest transform: 2897.904\n"];
 "tagger_tf/base_link" -> "tagger_tf/camera_link"[label=" Broadcaster: /tagger/robot_state_publisher\nAverage rate: 10000.0\nBuffer length: 0.0\nMost recent transform: 0.0\nOldest transform: 0.0\n"];
 "taggee_tf/base_link" -> "taggee_tf/imu_link"[label=" Broadcaster: /taggee/robot_state_publisher\nAverage rate: 10000.0\nBuffer length: 0.0\nMost recent transform: 0.0\nOldest transform: 0.0\n"];
 "tagger_tf/base_link" -> "tagger_tf/base_scan"[label=" Broadcaster: /tagger/robot_state_publisher\nAverage rate: 10000.0\nBuffer length: 0.0\nMost recent transform: 0.0\nOldest transform: 0.0\n"];
@@ -21,6 +21,6 @@ digraph G {
 "tagger_tf/camera_link" -> "tagger_tf/camera_depth_frame"[label=" Broadcaster: /tagger/robot_state_publisher\nAverage rate: 10000.0\nBuffer length: 0.0\nMost recent transform: 0.0\nOldest transform: 0.0\n"];
 edge [style=invis];
  subgraph cluster_legend { style=bold; color=black; label ="view_frames Result";
-"Recorded at time: 2902.593"[ shape=plaintext ] ;
+"Recorded at time: 2902.943"[ shape=plaintext ] ;
 }->"taggee_tf/odom";
 }

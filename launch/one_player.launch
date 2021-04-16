@@ -1,5 +1,6 @@
 <launch>
     <arg name="model_name"/>
+    <arg name="robot_name"/>
     <arg name="initial_pose"/>
 
     <!-- <param name="robot_description"
@@ -8,7 +9,7 @@
     <param name="robot_description" command="$(find xacro)/xacro --inorder '$(find turtlebot3_description)/urdf/$(arg model_name).urdf.xacro'"/>
    
     <node name="spawn_$(arg model_name)" pkg="gazebo_ros" type="spawn_model" 
-    args="$(arg initial_pose) -unpause -urdf -param robot_description -model $(arg model_name)"
+    args="$(arg initial_pose) -unpause -urdf -param robot_description -model $(arg robot_name)"
     respawn="false" output="screen"/> 
    
     <node pkg="robot_state_publisher" type="robot_state_publisher" 
