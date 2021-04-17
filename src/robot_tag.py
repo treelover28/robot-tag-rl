@@ -238,7 +238,7 @@ def get_current_state(message,args):
         }
 
         global PURSUER_MEAN_DISTANCE_TO_OBSTACLE 
-        PURSUER_MEAN_DISTANCE_TO_OBSTACLE= min(min_front, min_left, min_right)
+        PURSUER_MEAN_DISTANCE_TO_OBSTACLE= sum([min_front, min_left, min_right])/3
         
         if verbose:
             rospy.loginfo("Pursuer's state: {}".format(PURSUER_STATE_DISCRETIZED))
@@ -677,21 +677,14 @@ def train(train_type = "both", total_episodes = 1000, learning_rate = 0.2, disco
 def test(player_type, total_episodes = 2, episode_time_limit=30, time_to_apply_action = 0.33):
     current_episode = 0
 
-    if player_type == "pursuer":
-        current_state = PURSUER_STATE_DISCRETIZED
-        opponent_to_test = "evader"
-        q_table_current = Q_TABLE_PURSUER
-        q_table_opponent = Q_TABLE_EVADER
-    else:
-        current_state = EVADER_STATE_DISCRETIZED
-        q_table_current = Q_TABLE_EVADER
-        opponent_to_test = "pursuer"
-        q_table_opponent = Q_TABLE_PURSUER
-
+    
+    current_state = None
     accumulated_reward = 0 
     while(current_episode < total_episodes):
-
+        
+        
         # keep track of whether pursuer and evader are stuck, and what time
+        rospy.loginfo("Testing episode {}".format(current_episode))
         global EVADER_STUCK
         global PURSUER_STUCK
 
@@ -703,6 +696,18 @@ def test(player_type, total_episodes = 2, episode_time_limit=30, time_to_apply_a
 
         # spawn at random points
         spawn_robots()
+
+        while current_state is None or current_state["Opponent Position"] == "Tagged":
+            if player_type == "pursuer":
+                current_state = PURSUER_STATE_DISCRETIZED
+                opponent_to_test = "evader"
+                q_table_current = Q_TABLE_PURSUER
+                q_table_opponent = Q_TABLE_EVADER
+            else:
+                current_state = EVADER_STATE_DISCRETIZED
+                q_table_current = Q_TABLE_EVADER
+                opponent_to_test = "pursuer"
+                q_table_opponent = Q_TABLE_PURSUER
 
         start_time = rospy.Time.now()
         time_elapsed = rospy.Duration(secs=0)
@@ -726,7 +731,7 @@ def test(player_type, total_episodes = 2, episode_time_limit=30, time_to_apply_a
             thread = threading.Thread(target = follow_policy, args=(opponent_to_test, q_table_opponent))
             thread.start()
 
-             # get action A from S using policy
+            # get action A from S using policy
             translation_speed, turn_action = get_policy(q_table_current, current_state, verbose = False, epsilon= 1)
             # take action A and move player, this would change the player's state
             # rospy.loginfo("Chosen action {}".format(action))
@@ -782,8 +787,8 @@ def main():
                 global Q_TABLE_EVADER
                 Q_TABLE_EVADER = pickle.load(q_table_file)
     # rospy.spin()
-    train(train_type = "pursuer", starting_epsilon=0.4, total_episodes=2500)
-    # test("pursuer")
+    # train(train_type = "pursuer", starting_epsilon=0.4, total_episodes=2500)
+    test("pursuer", total_episodes= 10)
 
 
 if __name__ == "__main__":
