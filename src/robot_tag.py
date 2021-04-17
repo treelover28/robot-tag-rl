@@ -787,7 +787,7 @@ def main():
                 Q_TABLE_EVADER = pickle.load(q_table_file)
     # rospy.spin()
     # train(train_type = "pursuer", starting_epsilon=0.4, total_episodes=5000)
-    test("pursuer", total_episodes= 10)
+    test("pursuer", total_episodes= 50)
 # 
 
 if __name__ == "__main__":
