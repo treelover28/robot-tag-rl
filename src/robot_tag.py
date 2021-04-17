@@ -33,14 +33,13 @@ EVADER_STUCK = False
 EVADER_POSITION = None 
 
 EVADER_DISTANCE_FROM_NEAREST_OBSTACLE = None
-PURSUER_MEAN_DISTANCE_TO_OBSTACLE = None 
+PURSUER_MIN_DISTANCE_TO_OBSTACLE = None 
 DISTANCE_BETWEEN_PLAYERS = None
 LASERSCAN_MAX_RANGE = None 
 
 
-STARTING_LOCATIONS = [(0.5,0), (-0.5,0), (-0.5,1), (0.5,1), \
-    (-0.5,-1), (-0.5, -1), (2, 0), (-2,0), (-1,2), (-1,-2), \
-    (1.8,1), (2,-1)]
+STARTING_LOCATIONS = [(0.5,0), (-1.5,0), (-0.5,1), (0.5,1), \
+    (-0.5,-1), (-0.5, -1), (1.2, 0), (-1.2,0), (-1,2), (-1,-2)]
 # Gameplay hyperparameters
 TIMEOUT = False
 GAME_TIME = 30 # a round/traning episode last maximum 30 seconds
@@ -85,12 +84,12 @@ def reward_function(player_type, state):
         elif (state["Left"] in ["Close", "Too Close"] or \
             state["Right"] in ["Close", "Too Close"] or \
             state["Front"] in ["Close"]) and \
-            (DISTANCE_BETWEEN_PLAYERS > PURSUER_MEAN_DISTANCE_TO_OBSTACLE):
+            (DISTANCE_BETWEEN_PLAYERS > PURSUER_MIN_DISTANCE_TO_OBSTACLE):
             rospy.loginfo("Obstacle is nearby and evader is far")
             reward = -0.5 - sigmoid(1/DISTANCE_BETWEEN_PLAYERS)
         elif((state["Left"] in ["Close", "Too Close"] or \
               state["Right"] in ["Close", "Too Close"] or \
-              state["Front"] in ["Close"]) and DISTANCE_BETWEEN_PLAYERS <= PURSUER_MEAN_DISTANCE_TO_OBSTACLE
+              state["Front"] in ["Close"]) and DISTANCE_BETWEEN_PLAYERS <= PURSUER_MIN_DISTANCE_TO_OBSTACLE
             ) or \
             ((DISTANCE_BETWEEN_PLAYERS <= SAFE_DISTANCE_FROM_OBSTACLE * 1.2) or \
             state["Opponent Position"] in ["Close Left", "Close Front", "Close Bottom", "Close Right"]):
@@ -99,7 +98,7 @@ def reward_function(player_type, state):
         elif state["Opponent Position"] == "Front":
             reward = 0.5
         # there is no obstacle nearby and the target evader is far away
-        elif DISTANCE_BETWEEN_PLAYERS >= PURSUER_MEAN_DISTANCE_TO_OBSTACLE:
+        elif DISTANCE_BETWEEN_PLAYERS >= PURSUER_MIN_DISTANCE_TO_OBSTACLE:
             rospy.loginfo("No obstacle nearby and evader is far away")
             reward = -0.1 - sigmoid(1/DISTANCE_BETWEEN_PLAYERS)
         else:
@@ -118,7 +117,7 @@ def reward_function(player_type, state):
                and DISTANCE_BETWEEN_PLAYERS > EVADER_DISTANCE_FROM_NEAREST_OBSTACLE:
            reward = -1
         # if there is no obstacles nearby and the evader is far away from the pursuer
-        elif DISTANCE_BETWEEN_PLAYERS > PURSUER_MEAN_DISTANCE_TO_OBSTACLE:
+        elif DISTANCE_BETWEEN_PLAYERS > PURSUER_MIN_DISTANCE_TO_OBSTACLE:
             reward = sigmoid(DISTANCE_BETWEEN_PLAYERS)
         # punish states where the tagee lets the pursuer gets too close 
         elif (DISTANCE_BETWEEN_PLAYERS <= SAFE_DISTANCE_FROM_OBSTACLE * 1.3) or \
@@ -237,8 +236,8 @@ def get_current_state(message,args):
             "Opponent Position": get_opponent_position_rating(PURSUER_POSITION, EVADER_POSITION)
         }
 
-        global PURSUER_MEAN_DISTANCE_TO_OBSTACLE 
-        PURSUER_MEAN_DISTANCE_TO_OBSTACLE= sum([min_front, min_left, min_right])/3
+        global PURSUER_MIN_DISTANCE_TO_OBSTACLE 
+        PURSUER_MIN_DISTANCE_TO_OBSTACLE= min([min_front, min_left, min_right])
         
         if verbose:
             rospy.loginfo("Pursuer's state: {}".format(PURSUER_STATE_DISCRETIZED))
@@ -475,7 +474,7 @@ def random_walk_behavior(robot_type, robot_state, random_action_chance = 0.2):
     else:
         is_stuck = PURSUER_STUCK
 
-    if robot_state["Front"] == "Close" and robot_state["Left"] == "Very Close" and robot_state["Right"] == "Very Close" and is_stuck:
+    if robot_state["Front"] == "Close" and robot_state["Left"] == "Too Close" and robot_state["Right"] == "Too Close" and is_stuck:
         translation_speed = -0.1 
         turn_angle = -60
     elif robot_state["Front"] == "Close" and is_stuck:
@@ -565,7 +564,7 @@ def train(train_type = "both", total_episodes = 1000, learning_rate = 0.2, disco
     plt.xlabel("Training episode")
     plt.ylabel("Accumulated rewards")
     plt.xlim(0 , total_episodes)
-    plt.ylim(-50, 200)
+    plt.ylim(-50, 50)
     plt.legend(loc="upper left")
     plt.axhline(y= 0, color = "g", linestyle = "-")
     plt.show(block=False)
@@ -625,7 +624,7 @@ def train(train_type = "both", total_episodes = 1000, learning_rate = 0.2, disco
                 epsilon += 0.05
                 # plot training episode where epsilon changes
                 plt.axvline(x=current_episode, color="g",linestyle="--" )
-                plt.annotate("Epsilon: {}".format(epsilon),(current_episode, 80 + 5 *  (current_episode/epsilon_update_interval)))
+                plt.annotate("Epsilon: {}".format(epsilon),(current_episode, 2.5 *  (current_episode/epsilon_update_interval)))
             
             accumulated_reward = 0
             is_terminal = False
@@ -787,9 +786,9 @@ def main():
                 global Q_TABLE_EVADER
                 Q_TABLE_EVADER = pickle.load(q_table_file)
     # rospy.spin()
-    # train(train_type = "pursuer", starting_epsilon=0.4, total_episodes=2500)
+    # train(train_type = "pursuer", starting_epsilon=0.4, total_episodes=5000)
     test("pursuer", total_episodes= 10)
-
+# 
 
 if __name__ == "__main__":
     main()
