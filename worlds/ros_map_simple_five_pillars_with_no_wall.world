@@ -88,7 +88,7 @@
     </scene>
     <gui fullscreen='0'>
       <camera name='user_camera'>
-        <pose frame=''>-0.218148 -1.97106 13.4706 -3.4e-05 1.5698 1.87003</pose>
+        <pose frame=''>-2.41385 0.080691 13.4897 -0 1.3458 0.043997</pose>
         <view_controller>orbit</view_controller>
         <projection_type>perspective</projection_type>
       </camera>
@@ -108,10 +108,10 @@
       <heading_deg>0</heading_deg>
     </spherical_coordinates>
     <state world_name='default'>
-      <sim_time>7159 505000000</sim_time>
-      <real_time>260 299170809</real_time>
-      <wall_time>1618700513 231248277</wall_time>
-      <iterations>840072</iterations>
+      <sim_time>20491 846000000</sim_time>
+      <real_time>11119 916770877</real_time>
+      <wall_time>1618712143 191884485</wall_time>
+      <iterations>13332341</iterations>
       <model name='ground_plane'>
         <pose frame=''>0 0 0 0 -0 0</pose>
         <scale>1 1 1</scale>
@@ -122,7 +122,7 @@
           <wrench>0 0 0 0 -0 0</wrench>
         </link>
       </model>
-      <model name='ros_symbol_5_pillars_with_walls'>
+      <model name='ros_symbol_5_pillars_with_no_walls'>
         <pose frame=''>-0.029272 0.018724 0 0 -0 0</pose>
         <scale>1 1 1</scale>
         <link name='symbol'>
@@ -131,32 +131,12 @@
           <acceleration>0 0 0 0 -0 0</acceleration>
           <wrench>0 0 0 0 -0 0</wrench>
         </link>
-        <model name='nist_maze_wall_240'>
-          <pose frame=''>-1.40575 -0.601065 0 0 -0 0</pose>
-          <scale>1 1 1</scale>
-          <link name='nist__maze_wall_240_link'>
-            <pose frame=''>-1.40575 -0.601065 0 0 -0 0</pose>
-            <velocity>0 0 0 0 -0 0</velocity>
-            <acceleration>0 0 0 0 -0 0</acceleration>
-            <wrench>0 0 0 0 -0 0</wrench>
-          </link>
-        </model>
-        <model name='nist_maze_wall_240_clone'>
-          <pose frame=''>1.39772 -0.605382 0 0 -0 0</pose>
-          <scale>1 1 1</scale>
-          <link name='nist__maze_wall_240_link'>
-            <pose frame=''>1.39772 -0.605382 0 0 -0 0</pose>
-            <velocity>0 0 0 0 -0 0</velocity>
-            <acceleration>0 0 0 0 -0 0</acceleration>
-            <wrench>0 0 0 0 -0 0</wrench>
-          </link>
-        </model>
       </model>
       <light name='sun'>
         <pose frame=''>0 0 10 0 -0 0</pose>
       </light>
     </state>
-    <model name='ros_symbol_5_pillars_with_walls'>
+    <model name='ros_symbol_5_pillars_with_no_walls'>
       <link name='symbol'>
         <self_collide>0</self_collide>
         <enable_wind>0</enable_wind>
@@ -271,30 +251,6 @@
           <transparency>0</transparency>
           <cast_shadows>1</cast_shadows>
         </visual>
-        <visual name='three_three'>
-          <pose frame=''>1.1 1.1 0.25 0 -0 0</pose>
-          <geometry>
-            <cylinder>
-              <radius>0.15</radius>
-              <length>0.5</length>
-            </cylinder>
-          </geometry>
-          <material>
-            <script>
-              <uri>file://media/materials/scripts/gazebo.material</uri>
-              <name>Gazebo/White</name>
-            </script>
-            <shader type='vertex'>
-              <normal_map>__default__</normal_map>
-            </shader>
-            <ambient>1 1 1 1</ambient>
-            <diffuse>1 1 1 1</diffuse>
-            <specular>0 0 0 1</specular>
-            <emissive>0 0 0 1</emissive>
-          </material>
-          <transparency>0</transparency>
-          <cast_shadows>1</cast_shadows>
-        </visual>
         <visual name='body'>
           <pose frame=''>0 0 -0.3 0 0 -1.5708</pose>
           <geometry>
@@ -314,6 +270,30 @@
             <ambient>0.1 0.1 0.1 1</ambient>
             <diffuse>0.1 0.1 0.1 1</diffuse>
             <specular>0.01 0.01 0.01 1</specular>
+            <emissive>0 0 0 1</emissive>
+          </material>
+          <transparency>0</transparency>
+          <cast_shadows>1</cast_shadows>
+        </visual>
+        <visual name='three_three'>
+          <pose frame=''>1.1 1.1 0.25 0 -0 0</pose>
+          <geometry>
+            <cylinder>
+              <radius>0.15</radius>
+              <length>0.5</length>
+            </cylinder>
+          </geometry>
+          <material>
+            <script>
+              <uri>file://media/materials/scripts/gazebo.material</uri>
+              <name>Gazebo/White</name>
+            </script>
+            <shader type='vertex'>
+              <normal_map>__default__</normal_map>
+            </shader>
+            <ambient>1 1 1 1</ambient>
+            <diffuse>1 1 1 1</diffuse>
+            <specular>0 0 0 1</specular>
             <emissive>0 0 0 1</emissive>
           </material>
           <transparency>0</transparency>
@@ -527,10 +507,10 @@
             </contact>
           </surface>
         </collision>
-        <collision name='one_three'>
+        <collision name='three_one'>
           <laser_retro>0</laser_retro>
           <max_contacts>10</max_contacts>
-          <pose frame=''>-1.1 1.1 0.25 0 -0 0</pose>
+          <pose frame=''>1.1 -1.1 0.25 0 -0 0</pose>
           <geometry>
             <cylinder>
               <radius>0.15</radius>
@@ -583,10 +563,10 @@
             </contact>
           </surface>
         </collision>
-        <collision name='three_one'>
+        <collision name='one_three'>
           <laser_retro>0</laser_retro>
           <max_contacts>10</max_contacts>
-          <pose frame=''>1.1 -1.1 0.25 0 -0 0</pose>
+          <pose frame=''>-1.1 1.1 0.25 0 -0 0</pose>
           <geometry>
             <cylinder>
               <radius>0.15</radius>
@@ -976,84 +956,6 @@
           </surface>
         </collision>
       </link>
-      <model name='nist_maze_wall_240'>
-        <static>1</static>
-        <link name='nist__maze_wall_240_link'>
-          <pose frame=''>0 0 0 0 -0 0</pose>
-          <collision name='collision'>
-            <geometry>
-              <mesh>
-                <uri>model://nist_maze_wall_240/meshes/nist_maze_wall_240.dae</uri>
-                <scale>1 1 1</scale>
-              </mesh>
-            </geometry>
-            <max_contacts>10</max_contacts>
-            <surface>
-              <contact>
-                <ode/>
-              </contact>
-              <bounce/>
-              <friction>
-                <torsional>
-                  <ode/>
-                </torsional>
-                <ode/>
-              </friction>
-            </surface>
-          </collision>
-          <visual name='visual'>
-            <geometry>
-              <mesh>
-                <uri>model://nist_maze_wall_240/meshes/nist_maze_wall_240.dae</uri>
-                <scale>1 1 1</scale>
-              </mesh>
-            </geometry>
-          </visual>
-          <self_collide>0</self_collide>
-          <enable_wind>0</enable_wind>
-          <kinematic>0</kinematic>
-        </link>
-        <pose frame=''>-1.37648 -0.619789 0 0 -0 0</pose>
-      </model>
-      <model name='nist_maze_wall_240_clone'>
-        <static>1</static>
-        <link name='nist__maze_wall_240_link'>
-          <pose frame=''>0 0 0 0 -0 0</pose>
-          <collision name='collision'>
-            <geometry>
-              <mesh>
-                <uri>model://nist_maze_wall_240/meshes/nist_maze_wall_240.dae</uri>
-                <scale>1 1 1</scale>
-              </mesh>
-            </geometry>
-            <max_contacts>10</max_contacts>
-            <surface>
-              <contact>
-                <ode/>
-              </contact>
-              <bounce/>
-              <friction>
-                <torsional>
-                  <ode/>
-                </torsional>
-                <ode/>
-              </friction>
-            </surface>
-          </collision>
-          <visual name='visual'>
-            <geometry>
-              <mesh>
-                <uri>model://nist_maze_wall_240/meshes/nist_maze_wall_240.dae</uri>
-                <scale>1 1 1</scale>
-              </mesh>
-            </geometry>
-          </visual>
-          <self_collide>0</self_collide>
-          <enable_wind>0</enable_wind>
-          <kinematic>0</kinematic>
-        </link>
-        <pose frame=''>1.42699 -0.624106 0 0 -0 0</pose>
-      </model>
       <static>1</static>
       <allow_auto_disable>1</allow_auto_disable>
       <pose frame=''>-0.029272 0.018724 0 0 -0 0</pose>

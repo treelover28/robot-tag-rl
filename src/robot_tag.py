@@ -38,8 +38,7 @@ DISTANCE_BETWEEN_PLAYERS = None
 LASERSCAN_MAX_RANGE = None 
 
 
-STARTING_LOCATIONS = [(0.5,0), (-1.5,0), (-0.5,1), (0.5,1), \
-    (-0.5,-1), (-0.5, -1), (1.2, 0), (-1.2,0), (-1,2), (-1,-2)]
+STARTING_LOCATIONS = [(0,1), (-2,1), (0,-1), (0,2), (0,-2)]
 # Gameplay hyperparameters
 TIMEOUT = False
 GAME_TIME = 30 # a round/traning episode last maximum 30 seconds
@@ -786,9 +785,9 @@ def main():
                 global Q_TABLE_EVADER
                 Q_TABLE_EVADER = pickle.load(q_table_file)
     # rospy.spin()
-    # train(train_type = "pursuer", starting_epsilon=0.4, total_episodes=5000)
-    test("pursuer", total_episodes= 50)
-# 
+    train(train_type = "pursuer", starting_epsilon=0.4, total_episodes=5000)
+    # test("pursuer", total_episodes= 50)
+ 
 
 if __name__ == "__main__":
     main()
