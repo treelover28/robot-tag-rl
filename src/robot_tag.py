@@ -76,16 +76,16 @@ def reward_function(player_type, state):
     if player_type == "pursuer":
         # if the pursuer gets stuck, it loses that game -> negative reward
         if PURSUER_STUCK:
-            reward = -2
+            reward = -5
         elif state["Opponent Position"] == "Tagged":
-            reward = 5 
+            reward = 30 
         # to avoid obstacles 
         elif (state["Left"] in ["Close", "Too Close"] or \
             state["Right"] in ["Close", "Too Close"] or \
             state["Front"] in ["Close"]) and \
             (DISTANCE_BETWEEN_PLAYERS > PURSUER_MIN_DISTANCE_TO_OBSTACLE):
             rospy.loginfo("Obstacle is nearby and evader is far")
-            reward = -0.5 - sigmoid(1/DISTANCE_BETWEEN_PLAYERS)
+            reward = -1 - sigmoid(1/DISTANCE_BETWEEN_PLAYERS)
         elif((state["Left"] in ["Close", "Too Close"] or \
               state["Right"] in ["Close", "Too Close"] or \
               state["Front"] in ["Close"]) and DISTANCE_BETWEEN_PLAYERS <= PURSUER_MIN_DISTANCE_TO_OBSTACLE
@@ -95,11 +95,11 @@ def reward_function(player_type, state):
             rospy.loginfo("Evader is nearby")
             reward = sigmoid(1/DISTANCE_BETWEEN_PLAYERS) * 2.5 
         elif state["Opponent Position"] == "Front":
-            reward = 0.5
+            reward = 1
         # there is no obstacle nearby and the target evader is far away
         elif DISTANCE_BETWEEN_PLAYERS >= PURSUER_MIN_DISTANCE_TO_OBSTACLE:
             rospy.loginfo("No obstacle nearby and evader is far away")
-            reward = -0.1 - sigmoid(1/DISTANCE_BETWEEN_PLAYERS)
+            reward = -0.5 - sigmoid(1/DISTANCE_BETWEEN_PLAYERS)
         else:
             reward = 0
     elif player_type == "evader":
@@ -785,8 +785,8 @@ def main():
                 global Q_TABLE_EVADER
                 Q_TABLE_EVADER = pickle.load(q_table_file)
     # rospy.spin()
-    train(train_type = "pursuer", starting_epsilon=0.4, total_episodes=5000)
-    # test("pursuer", total_episodes= 50)
+    # train(train_type = "pursuer", starting_epsilon=0.2, total_episodes=2000)
+    test("pursuer", total_episodes= 50)
  
 
 if __name__ == "__main__":
