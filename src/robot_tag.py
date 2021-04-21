@@ -39,13 +39,10 @@ LASERSCAN_MAX_RANGE = None
 
 
 STARTING_LOCATIONS = [(0,1), (-2,1), (0,-1), (0,2), (0,-2)]
-# Gameplay hyperparameters
-TIMEOUT = False
-GAME_TIME = 30 # a round/traning episode last maximum 30 seconds
 # State Space Hyperparameters
 SAFE_DISTANCE_FROM_OBSTACLE = 0.3
-ROTATIONAL_ACTIONS = [45,20,0,-20,-45]
-TRANSLATION_SPEED = 0.3 
+ROTATIONAL_ACTIONS = [60,45,20,0,-20,-45,-60]
+TRANSLATION_SPEED = [0.2]
 DIRECTIONAL_STATES = ["Front", "Left", "Right", "Opponent Position"]
 FRONT_RATINGS = ["Close", "OK", "Far"]
 LEFT_RATINGS = ["Too Close", "Close", "OK", "Far", "Too Far"]
@@ -59,8 +56,6 @@ PURSUER_CMD_PUBLISHER = None
 EVADER_SCAN_SUBSCRIBER = None 
 EVADER_POSITION_SUBSCRIBER = None 
 EVADER_CMD_PUBLISHER = None 
-TRANSFORM_LISTENER = None
-TF_BUFFER = None
 
 # Q-tables
 Q_TABLE_PURSUER = None 
@@ -75,20 +70,25 @@ def reward_function(player_type, state):
     
     if player_type == "pursuer":
         # if the pursuer gets stuck, it loses that game -> negative reward
+        # the negative reward is also based on how badly it lost that round
         if PURSUER_STUCK:
-            reward = -5
+            reward = -10 - 5*sigmoid(DISTANCE_BETWEEN_PLAYERS)
         elif state["Opponent Position"] == "Tagged":
             reward = 30 
-        # to avoid obstacles 
+        # if there are obstacles nearby, and the evader is far away, promote obstacles avoidance behavior
         elif (state["Left"] in ["Close", "Too Close"] or \
             state["Right"] in ["Close", "Too Close"] or \
             state["Front"] in ["Close"]) and \
-            (DISTANCE_BETWEEN_PLAYERS > PURSUER_MIN_DISTANCE_TO_OBSTACLE):
+            (DISTANCE_BETWEEN_PLAYERS > PURSUER_MIN_DISTANCE_TO_OBSTACLE * 1.2):
             rospy.loginfo("Obstacle is nearby and evader is far")
             reward = -1 - sigmoid(1/DISTANCE_BETWEEN_PLAYERS)
+
+            # if the other robot is nearby and there is an obstacle, there is a chance that obstacle 
+            # may be the other robot, so we encourage those states
+            # or if the distance between players are very close
         elif((state["Left"] in ["Close", "Too Close"] or \
               state["Right"] in ["Close", "Too Close"] or \
-              state["Front"] in ["Close"]) and DISTANCE_BETWEEN_PLAYERS <= PURSUER_MIN_DISTANCE_TO_OBSTACLE
+              state["Front"] in ["Close"]) and DISTANCE_BETWEEN_PLAYERS <= PURSUER_MIN_DISTANCE_TO_OBSTACLE * 1.2
             ) or \
             ((DISTANCE_BETWEEN_PLAYERS <= SAFE_DISTANCE_FROM_OBSTACLE * 1.2) or \
             state["Opponent Position"] in ["Close Left", "Close Front", "Close Bottom", "Close Right"]):
@@ -289,7 +289,10 @@ def create_q_table(player_type = "pursuer"):
     
     q_table = {}
     all_states = []
-    _get_state_permutations(0, list(), 4, all_states)
+    _get_permutations(0, [FRONT_RATINGS,LEFT_RATINGS,RIGHT_RATINGS, OPPONENT_RATINGS], list(), 4, all_states)
+    
+    all_actions = []
+    _get_permutations(0,[TRANSLATION_SPEED, ROTATIONAL_ACTIONS],list(),2, all_actions)
 
     for state in all_states:
         # unpack tuple to get corresponding distance ratings for each direction
@@ -301,7 +304,7 @@ def create_q_table(player_type = "pursuer"):
 
         # initialize the q-value for each action to be 0
         q_values = {}
-        for action in ROTATIONAL_ACTIONS:
+        for action in all_actions:
             q_values[action] = 0
 
         # each state has n q-values associated with n actions that can be done, plus
@@ -312,7 +315,7 @@ def create_q_table(player_type = "pursuer"):
         q_table_file.seek(0)
         q_table_file.write(pickle.dumps(q_table)) 
 
-def _get_state_permutations(current_list_index, prefix, k, states_accumulator):
+def _get_permutations(current_list_index, lists, prefix, k, states_accumulator):
     """ Helper function to generate all permutations of length n with replacements
     using elements in choices list. The prefix is the current partial permutation
     and k indicates how many more elements we still need to add to current partial permuation
@@ -328,18 +331,11 @@ def _get_state_permutations(current_list_index, prefix, k, states_accumulator):
         states_accumulator.append(prefix)
         return
     
-    if current_list_index == 0:
-        rating_list = FRONT_RATINGS
-    elif current_list_index == 1:
-        rating_list = LEFT_RATINGS
-    elif current_list_index == 2:
-        rating_list = RIGHT_RATINGS
-    else:
-        rating_list = OPPONENT_RATINGS
-
-    for i in range(len(rating_list)):
-        new_prefix = (prefix + [rating_list[i]])
-        _get_state_permutations(current_list_index + 1, new_prefix, k-1, states_accumulator)
+    list_to_select_from = lists[current_list_index]
+   
+    for i in range(len(list_to_select_from)):
+        new_prefix = (prefix + [list_to_select_from[i]])
+        _get_permutations(current_list_index + 1, lists, new_prefix, k-1, states_accumulator)
 
 def move_robot(player_type, translation_speed, angular_speed_degrees):
     """ Receive a linear speed and an angular speed (degrees/second), craft a Twist message,
@@ -409,23 +405,33 @@ def get_policy(q_table, state_dictionary, verbose = True, epsilon = 1.0):
 
         chosen_action = None
         # if r < epsilon, choose an action with highest q-value (utility)  
+        actions = list(q_values.keys())
         if (r < epsilon):
             max_q_values = float("-inf")
-            for action in ROTATIONAL_ACTIONS:
+            for action in actions :
                 if q_values[action] > max_q_values:
                     chosen_action = action
                     max_q_values = q_values[action]
         else:
-            chosen_action = ROTATIONAL_ACTIONS[int(random.random() * len(q_values))]
+            chosen_action = actions[int(random.random() * len(actions))]
             exploration_flag = True 
-
+        
+        # check if action returned is a tuple of (translation_velocity, angular_velocity) to be backward compatible with the older q-table
+        # I fixed my translational speed to be 0.2 during my previous attempts, so the chosen_action back then was a single integer
+        # indicating the angular velocity
+        if isinstance(chosen_action, (tuple,list)):
+            translation_velocity, angular_velocity = chosen_action
+        else:
+            translation_velocity, angular_velocity = 0.2, chosen_action
+        
         if verbose:
             if exploration_flag:
                 rospy.loginfo("Exploration. Random action chosen.")
             else:
                 rospy.loginfo("Exploitation. Choose action with max-utility.")
-            rospy.loginfo("Action: angular {})".format(chosen_action))
-        return TRANSLATION_SPEED, chosen_action
+            rospy.loginfo("Action: translation: {}, angular {})".format(translation_velocity, angular_velocity))
+        return translation_velocity, angular_velocity
+    
     rospy.loginfo("Not returning valid action")
     return -1,-1
 
@@ -477,29 +483,29 @@ def random_walk_behavior(robot_type, robot_state, random_action_chance = 0.2):
         translation_speed = -0.1 
         turn_angle = -60
     elif robot_state["Front"] == "Close" and is_stuck:
-        translation_speed = -1*TRANSLATION_SPEED
+        translation_speed = -0.2
         turn_angle = -60
     else:
-        translation_speed = TRANSLATION_SPEED   
+        translation_speed = 0.2 
         # 20% chance of making random turns
         if (random.random() < 0.2):
             turn_angle = random.randint(0,359)
         else:
             # just go straight else
             turn_angle = 0 
+    rospy.loginfo("translation_speed: {}, turn_angle {}".format(translation_speed, turn_angle))
     return (translation_speed, turn_angle)
 
 
 def follow_policy(player_type, q_table):
-
     if player_type == "pursuer":
         current_state = PURSUER_STATE_DISCRETIZED
-        translation_speed, turn_action = get_policy(q_table, current_state, verbose= False, epsilon = 1.0)
+        translation_velocity, angular_velocity = get_policy(q_table, current_state, verbose= False, epsilon = 1.0)
     elif player_type == "evader":
         current_state = EVADER_STATE_DISCRETIZED
-        translation_speed, turn_action = random_walk_behavior(robot_type="evader", robot_state=current_state)
+        translation_velocity, angular_velocity = random_walk_behavior(robot_type="evader", robot_state=current_state)
     
-    move_robot(player_type, translation_speed, turn_action)
+    move_robot(player_type, translation_velocity, angular_velocity)
     rospy.sleep(0.33)
 
 def is_stuck(last_few_positions):
@@ -568,7 +574,10 @@ def train(train_type = "both", total_episodes = 1000, learning_rate = 0.2, disco
     plt.axhline(y= 0, color = "g", linestyle = "-")
     plt.show(block=False)
 
-    training_rewards = []
+    num_tagged = 0
+    best_test_score = float("-inf")
+    best_train_score = float("-inf")
+    training_reward = 0
     while current_episode < total_episodes:
         if (PURSUER_STATE_DISCRETIZED is not None and EVADER_STATE_DISCRETIZED is not None):
             rospy.loginfo("Starting Episode {}".format(current_episode))
@@ -609,7 +618,15 @@ def train(train_type = "both", total_episodes = 1000, learning_rate = 0.2, disco
             # including episode 0 => baseline for how robot is doing pre-training
             if current_episode % 100 == 0:
                 rospy.loginfo("Testing policy learned so far")
-                test_reward = test(player_to_train)
+                test_reward = test(player_to_train, total_episodes = 10)
+                if test_reward > best_test_score:
+                    # save the policy into a seperate Q-table everytime it achieve a high on the testing phase
+                    # save q-table
+                    with open("q_table_{}_best_testing.txt".format(player_to_train), "w") as q_table_file:
+                        q_table_file.seek(0)
+                        q_table_file.write(pickle.dumps(q_table_player)) 
+                    best_test_score = test_reward
+
                 _plot_learning_curve(test_curve, current_episode, test_reward)
             
         
@@ -653,15 +670,26 @@ def train(train_type = "both", total_episodes = 1000, learning_rate = 0.2, disco
                 # follow_policy(opponent_to_test, q_table_opponent)
                 thread.join()
             
+            # keep track of how many times the pursuer managed to tag the evader
+            if PURSUER_STATE_DISCRETIZED["Opponent Position"] == "Tagged":
+                num_tagged+=1
+
             current_episode += 1
-           
-            training_rewards.append(accumulated_reward)
+            training_reward += accumulated_reward
             
-            if current_episode % 20 == 0:
-                # plot learning curve using the average reward each 20 training episodes
-                _plot_learning_curve(learning_curve,current_episode, sum(training_rewards)/len(training_rewards))
-                training_rewards = []
-        
+            if current_episode % 50 == 0:
+                # plot learning curve using the average reward each 50 training episodes
+                _plot_learning_curve(learning_curve,current_episode, training_reward/50)
+                
+                if training_reward > best_train_score:
+                    # save the policy into a seperate Q-table everytime it achieve a high on the testing phase
+                    # save q-table
+                    with open("q_table_{}_best_training.txt".format(player_to_train), "w") as q_table_file:
+                        q_table_file.seek(0)
+                        q_table_file.write(pickle.dumps(q_table_player)) 
+                    best_train_score = training_reward
+                training_reward = 0
+                
             if current_episode != 0 and current_episode % 500 == 0:
                 # save the training curve figure every 500 episodes
                 plt.savefig("td_curve_{}_episodes".format(current_episode), dpi=100)
@@ -670,17 +698,18 @@ def train(train_type = "both", total_episodes = 1000, learning_rate = 0.2, disco
                 q_table_file.seek(0)
                 q_table_file.write(pickle.dumps(q_table_player)) 
             rospy.loginfo("Saved Q-Table_{}".format(player_to_train))
+            rospy.loginfo("Num tags = {}, Tag rate = {}".format(num_tagged, num_tagged/total_episodes))
 
 
 def test(player_type, total_episodes = 2, episode_time_limit=30, time_to_apply_action = 0.33):
     current_episode = 0
-
-    
     current_state = None
     accumulated_reward = 0 
+    # keeps track of how many rounds the pursuer managed to tag the evader
+    num_tagged = 0
+    num_stuck = 0
+    num_timeout = 0
     while(current_episode < total_episodes):
-        
-        
         # keep track of whether pursuer and evader are stuck, and what time
         rospy.loginfo("Testing episode {}".format(current_episode))
         global EVADER_STUCK
@@ -706,16 +735,20 @@ def test(player_type, total_episodes = 2, episode_time_limit=30, time_to_apply_a
                 q_table_current = Q_TABLE_EVADER
                 opponent_to_test = "pursuer"
                 q_table_opponent = Q_TABLE_PURSUER
-
+        
+        # keeps track of how much time is left in current round
         start_time = rospy.Time.now()
         time_elapsed = rospy.Duration(secs=0)
+        
         while(not is_terminal_state(train_type=player_type, time_elapsed=time_elapsed, \
                                     episode_time_limit=episode_time_limit,pursuer_stuck= PURSUER_STUCK, evader_stuck= EVADER_STUCK, \
                                     opponent_rating = current_state["Opponent Position"])):
-            time_elapsed = rospy.Time.now() - start_time
+            
             # check if robots are stuck
             if len(last_few_pursuer_positions) == int(1.5/time_to_apply_action):
-                PURSUER_STUCK = is_stuck(last_few_pursuer_positions)    
+                PURSUER_STUCK = is_stuck(last_few_pursuer_positions)
+                if PURSUER_STUCK:
+                    num_stuck +=1    
                 del last_few_pursuer_positions[0]
                 
             if len(last_few_evader_positions) == int(1.5/time_to_apply_action):
@@ -742,10 +775,34 @@ def test(player_type, total_episodes = 2, episode_time_limit=30, time_to_apply_a
             else:
                 current_state = EVADER_STATE_DISCRETIZED
             accumulated_reward += reward_function(player_type, current_state)
+
+            if current_state["Opponent Position"] == "Tagged":
+                num_tagged += 1
+
+            time_elapsed = rospy.Time.now() - start_time
+            if time_elapsed >= rospy.Duration(secs = episode_time_limit):
+                num_timeout += 1
         current_episode += 1
+        
+    rospy.loginfo("TEST PHASE: {} times tagged out of {} testing rounds".format(num_tagged, total_episodes))
+    rospy.loginfo("TEST PHASE: {} times stuck out of {} testing rounds".format(num_stuck, total_episodes))
+    rospy.loginfo("TEST PHASE: {} times timeout out of {} testing rounds".format(num_timeout, total_episodes))
+
     return accumulated_reward / total_episodes
 
-
+def load_q_table(q_table_name,player_type):
+    if (not os.path.isfile(q_table_name)):
+        rospy.loginfo("{} file is not found in current present working directory".format(q_table_name))
+        return False
+    else:
+        with open(q_table_name, "rb") as q_table_file:
+            if player_type == "pursuer": 
+                global Q_TABLE_PURSUER
+                Q_TABLE_PURSUER = pickle.load(q_table_file)
+            else:
+                global Q_TABLE_EVADER
+                Q_TABLE_EVADER = pickle.load(q_table_file)
+        return True
 
 def main():
     rospy.loginfo("Waiting 3 seconds for everything to get set up...")
@@ -757,8 +814,6 @@ def main():
     global EVADER_SCAN_SUBSCRIBER
     global EVADER_POSITION_SUBSCRIBER 
     global EVADER_CMD_PUBLISHER 
-    global TRANSFORM_LISTENER
-    global TF_BUFFER
     # get pursuer's LaserScan reading to process and yield pursuer's current state
     PURSUER_SCAN_SUBSCRIBER = rospy.Subscriber("/pursuer/scan", LaserScan, callback=get_current_state, callback_args={"player_type" : "pursuer" ,"verbose": True})
     # repeat with evader
@@ -773,20 +828,26 @@ def main():
     EVADER_CMD_PUBLISHER = rospy.Publisher("evader/cmd_vel", Twist, latch=True, queue_size=1)
     
 
-    for player_type in ["pursuer", "evader"]:
-        if (not os.path.isfile("q_table_{}.txt".format(player_type))):
-            rospy.loginfo("Created and initialized a new Q_Table for {}".format(player_type))
-            create_q_table(player_type)
-        with open("q_table_{}.txt".format(player_type), "rb") as q_table_file:
-            if player_type == "pursuer": 
-                global Q_TABLE_PURSUER
-                Q_TABLE_PURSUER = pickle.load(q_table_file)
-            else:
-                global Q_TABLE_EVADER
-                Q_TABLE_EVADER = pickle.load(q_table_file)
+    # for player_type in ["pursuer", "evader"]:
+    #     if (not os.path.isfile("q_table_{}.txt".format(player_type))):
+    #         rospy.loginfo("Created and initialized a new Q_Table for {}".format(player_type))
+    #         create_q_table(player_type)
+    #     with open("q_table_{}.txt".format(player_type), "rb") as q_table_file:
+    #         if player_type == "pursuer": 
+    #             global Q_TABLE_PURSUER
+    #             Q_TABLE_PURSUER = pickle.load(q_table_file)
+    #         else:
+    #             global Q_TABLE_EVADER
+    #             Q_TABLE_EVADER = pickle.load(q_table_file)
+
+    
+    
     # rospy.spin()
-    # train(train_type = "pursuer", starting_epsilon=0.2, total_episodes=2000)
-    test("pursuer", total_episodes= 50)
+    # train(train_type = "pursuer", starting_epsilon=0.1, total_episodes=25000)
+
+    successfully_loaded = load_q_table(q_table_name="q_table_pursuer_best_testing_0.2_with_60_turns.txt", player_type="pursuer")
+    if successfully_loaded:
+        test("pursuer", total_episodes= 100, episode_time_limit=40)
  
 
 if __name__ == "__main__":
