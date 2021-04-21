@@ -42,7 +42,10 @@ STARTING_LOCATIONS = [(0,1), (-2,1), (0,-1), (0,2), (0,-2)]
 # State Space Hyperparameters
 SAFE_DISTANCE_FROM_OBSTACLE = 0.3
 ROTATIONAL_ACTIONS = [60,45,20,0,-20,-45,-60]
-TRANSLATION_SPEED = [0.2]
+# slow speed 0.05 to help it slow down when near obstacle
+# regular speed is 0.2 
+# accelerated speed to help it speed up and catch the evader when it is nearby
+TRANSLATION_SPEED = [0.05, 0.2, 0.35]
 DIRECTIONAL_STATES = ["Front", "Left", "Right", "Opponent Position"]
 FRONT_RATINGS = ["Close", "OK", "Far"]
 LEFT_RATINGS = ["Too Close", "Close", "OK", "Far", "Too Far"]
