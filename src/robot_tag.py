@@ -38,7 +38,7 @@ DISTANCE_BETWEEN_PLAYERS = None
 LASERSCAN_MAX_RANGE = None 
 
 
-STARTING_LOCATIONS = [(0,1), (-2,1), (0,-1), (0,2), (0,-2)]
+STARTING_LOCATIONS = [(0,1), (-2,1), (0,-1), (0,1.5), (0,-1.5)]
 # State Space Hyperparameters
 SAFE_DISTANCE_FROM_OBSTACLE = 0.35
 ROTATIONAL_ACTIONS = [60,45,20,0,-20,-45,-60]
@@ -97,7 +97,9 @@ def reward_function(player_type, state):
             rospy.loginfo("Evader is nearby and we are relatively safe from obstacles")
             reward = sigmoid(1/DISTANCE_BETWEEN_PLAYERS) * 2.5 
         elif state["Opponent Position"] == "Front":
-            reward = 1 + sigmoid(1/DISTANCE_BETWEEN_PLAYERS)
+            # encourage robot to orient itself such that the opponent is directly in front of it
+            # take away the sigmoid of the distance to encourage it to minimize such distance 
+            reward = 2 - sigmoid(DISTANCE_BETWEEN_PLAYERS)
         # there is no obstacle nearby and the target evader is far away
         elif DISTANCE_BETWEEN_PLAYERS >= PURSUER_MIN_DISTANCE_TO_OBSTACLE and PURSUER_MIN_DISTANCE_TO_OBSTACLE >= SAFE_DISTANCE_FROM_OBSTACLE:
             rospy.loginfo("No obstacle nearby and evader is far away")
@@ -843,11 +845,11 @@ def main():
                 global Q_TABLE_EVADER
                 Q_TABLE_EVADER = pickle.load(q_table_file)
     
-    # train(train_type = "pursuer", starting_epsilon=0.15, total_episodes=25000)
+    # train(train_type = "pursuer", starting_epsilon=0.55, total_episodes=15000)
 
     successfully_loaded = load_q_table(q_table_name="q_table_pursuer_best_training.txt", player_type="pursuer")
     if successfully_loaded:
-        test("pursuer", total_episodes= 100, episode_time_limit=40)
+        test("pursuer", total_episodes= 100, episode_time_limit=60)
     
     
     # rospy.spin()
