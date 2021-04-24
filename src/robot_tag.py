@@ -35,21 +35,25 @@ EVADER_POSITION = None
 EVADER_DISTANCE_FROM_NEAREST_OBSTACLE = None
 PURSUER_MIN_DISTANCE_TO_OBSTACLE = None 
 DISTANCE_BETWEEN_PLAYERS = None
-LASERSCAN_MAX_RANGE = None 
 
+# for ros_plaza
+# STARTING_LOCATIONS = [(0,1), (-2,1), (0,-1), (0,1.5), (0,-1.5), (-2,-1), (0.5,0), (-2,1.5)]
 
-STARTING_LOCATIONS = [(0,1), (-2,1), (0,-1), (0,1.5), (0,-1.5)]
+# for ros pillars map
+STARTING_LOCATIONS = [(0,1), (-2,1), (0,-1), (0,1.5), (0,-2), (0,2)]
 # State Space Hyperparameters
-SAFE_DISTANCE_FROM_OBSTACLE = 0.35
+SAFE_DISTANCE_FROM_OBSTACLE = 0.3
 ROTATIONAL_ACTIONS = [60,45,20,0,-20,-45,-60]
 # slow speed 0.1 to help it slow down when near obstacle
 # regular speed is 0.2 
 # accelerated speed to help it speed up and catch the evader when it is nearby
 TRANSLATION_SPEED = [0.05, 0.2, 0.35]
-DIRECTIONAL_STATES = ["Front", "Left", "Right", "Opponent Position"]
+DIRECTIONAL_STATES = ["Front", "Upper Left", "Upper Right", "Lower Left", "Lower Right","Opponent Position"]
 FRONT_RATINGS = ["Close", "OK", "Far"]
-LEFT_RATINGS = ["Too Close", "Close", "OK", "Far", "Too Far"]
-RIGHT_RATINGS = ["Too Close", "Close", "OK", "Far", "Too Far"]
+UPPER_LEFT_RATINGS = ["Too Close", "Close", "OK", "Far"]
+UPPER_RIGHT_RATINGS = ["Too Close", "Close", "OK", "Far"]
+LOWER_LEFT_RATINGS = ["Too Close", "Close", "OK", "Far"]
+LOWER_RIGHT_RATINGS = ["Too Close", "Close", "OK", "Far"]
 OPPONENT_RATINGS = ["Close Left", "Left", "Close Front", "Front", "Right", "Close Right", "Bottom", "Close Bottom", "Tagged"]
 
 # DIFFERENT TOPICS SUBSCRIBERS AND LISTENERS
@@ -67,46 +71,58 @@ Q_TABLE_EVADER = None
 def sigmoid(x):
     return 1/(1+np.exp(-1*x))
 
-def reward_function(player_type, state):
+def reward_function(player_type, state, verbose = True):
     global DISTANCE_BETWEEN_PLAYERS
     DISTANCE_BETWEEN_PLAYERS = np.linalg.norm(np.array(PURSUER_POSITION[0:2]) - np.array(EVADER_POSITION[0:2]))
+    
     
     if player_type == "pursuer":
         # if the pursuer gets stuck, it loses that game -> negative reward
         # the negative reward is also based on how badly it lost that round
         if PURSUER_STUCK:
+            rospy.loginfo("STUCK!")
+            state_description = "STUCK!"
             reward = -10 - 5*sigmoid(DISTANCE_BETWEEN_PLAYERS)
         elif state["Opponent Position"] == "Tagged":
+            rospy.loginfo("TAGGED!")
+            state_description = "TAGGED!"
             reward = 30 
-        # if there are obstacles nearby, and the evader is far away, promote obstacles avoidance behavior
-        elif (state["Left"] in ["Close", "Too Close"] or \
-            state["Right"] in ["Close", "Too Close"] or \
-            state["Front"] in ["Close"]) and \
-            (DISTANCE_BETWEEN_PLAYERS > PURSUER_MIN_DISTANCE_TO_OBSTACLE * 1.1 or PURSUER_MIN_DISTANCE_TO_OBSTACLE <= SAFE_DISTANCE_FROM_OBSTACLE):
-            rospy.loginfo("Obstacle is nearby and evader is not as close. Prioritize obstacle avoidance")
+        # if there are obstacles nearby (that is not the evader), and the evader is far away, promote obstacles avoidance behavior
+        elif (((state["Upper Left"] in ["Close", "Too Close"] and state["Opponent Position"] != "Close Left")  or \
+               (state["Upper Right"] in ["Close", "Too Close"] and state["Opponent Position"] != "Close Right") or \
+               (state["Lower Left"] in ["Close", "Too Close"] and state["Opponent Position"] != "Close Left") or \
+               (state["Lower Right"] in ["Close", "Too Close"] and state["Opponent Position"] != "Close Right") or \
+               (state["Front"] in ["Close"] and state["Opponent Position"] != "Close Front")) and\
+                   DISTANCE_BETWEEN_PLAYERS > PURSUER_MIN_DISTANCE_TO_OBSTACLE * 1.25): 
+            
+            state_description = "Obstacle is a lot nearer compared to evader. Prioritize obstacle avoidance"
             reward = -1 - sigmoid(1/DISTANCE_BETWEEN_PLAYERS) - sigmoid(1/PURSUER_MIN_DISTANCE_TO_OBSTACLE)
             # if the other robot is nearby and there is an obstacle, there is a chance that obstacle 
             # may be the other robot, so we encourage those states
             # or if the distance between players are very close
-        elif((state["Left"] in ["Close", "Too Close"] or \
-              state["Right"] in ["Close", "Too Close"] or \
-              state["Front"] in ["Close"]) and \
-                  DISTANCE_BETWEEN_PLAYERS <= PURSUER_MIN_DISTANCE_TO_OBSTACLE * 1.1) or\
-            ((DISTANCE_BETWEEN_PLAYERS <= SAFE_DISTANCE_FROM_OBSTACLE * 1.2) or \
-            state["Opponent Position"] in ["Close Left", "Close Front", "Close Bottom", "Close Right"]):
-            rospy.loginfo("Evader is nearby and we are relatively safe from obstacles")
+        elif (((state["Upper Left"] in ["Close", "Too Close"] and state["Opponent Position"] == "Close Left")  or \
+               (state["Upper Right"] in ["Close", "Too Close"] and state["Opponent Position"] == "Close Right") or \
+               (state["Lower Left"] in ["Close", "Too Close"] and state["Opponent Position"] == "Close Left") or \
+               (state["Lower Right"] in ["Close", "Too Close"] and state["Opponent Position"] == "Close Right") or \
+               (state["Front"] in ["Close"] and state["Opponent Position"] != "Close Front")) and\
+                   DISTANCE_BETWEEN_PLAYERS <= PURSUER_MIN_DISTANCE_TO_OBSTACLE * 1.3) or\
+                       (DISTANCE_BETWEEN_PLAYERS <= SAFE_DISTANCE_FROM_OBSTACLE * 1.2):
+            state_description = "Evader is nearby and we are relatively safe from obstacles"
             reward = sigmoid(1/DISTANCE_BETWEEN_PLAYERS) * 2.5 
         elif state["Opponent Position"] == "Front":
             # encourage robot to orient itself such that the opponent is directly in front of it
             # take away the sigmoid of the distance to encourage it to minimize such distance 
-            reward = 2 - sigmoid(DISTANCE_BETWEEN_PLAYERS)
+            state_description = "Evader is in front!"
+            reward = 2* sigmoid(1/DISTANCE_BETWEEN_PLAYERS)
         # there is no obstacle nearby and the target evader is far away
         elif DISTANCE_BETWEEN_PLAYERS >= PURSUER_MIN_DISTANCE_TO_OBSTACLE and PURSUER_MIN_DISTANCE_TO_OBSTACLE >= SAFE_DISTANCE_FROM_OBSTACLE:
-            rospy.loginfo("No obstacle nearby and evader is far away")
+            state_description = "No obstacle nearby and evader is also not nearby"
             reward = -0.5 - sigmoid(1/DISTANCE_BETWEEN_PLAYERS)
         else:
+            state_description = "Neutral state"
             reward = 0
     elif player_type == "evader":
+        # TODO: FIX THIS LATER
         # Evader loses the game if it gets stuck
         if EVADER_STUCK:
             reward = -2
@@ -128,6 +144,11 @@ def reward_function(player_type, state):
             reward = -2.5 * sigmoid(1/DISTANCE_BETWEEN_PLAYERS)
         else:
             reward = 0 
+    if verbose:
+        rospy.loginfo("Distance between player: {} vs distance to obstacle: {}, safe distance from obstacle is {}".format(DISTANCE_BETWEEN_PLAYERS, PURSUER_MIN_DISTANCE_TO_OBSTACLE * 1.1, SAFE_DISTANCE_FROM_OBSTACLE))
+        rospy.loginfo("{}'s state is {}".format(player_type, state_description))
+        rospy.loginfo("{}'s reward is {}".format(player_type, reward))
+    
     return reward 
 
 
@@ -168,15 +189,15 @@ def get_opponent_position_rating(player_A, player_B):
 
     # if player_A == PURSUER_POSITION:
     #     print("angle: {}".format(angle_deg))
-    if 0 <= angle_deg < 45 or 315 <= angle_deg < 360:
+    if 0 <= angle_deg < 30 or 330 <= angle_deg < 360:
        direction_rating = "Front"
-    elif 45 <= angle_deg < 135:
+    elif 30 <= angle_deg < 135:
         direction_rating = "Left"
-    elif 225 <= angle_deg < 315:
+    elif 225 <= angle_deg < 330:
         direction_rating = "Right"
     else:
         direction_rating = "Bottom"
-
+    
     distance_rating = ""
     if distance <= SAFE_DISTANCE_FROM_OBSTACLE * 1.3:
         distance_rating = "Close"
@@ -190,76 +211,83 @@ def get_distance_rating(direction, distance):
             rating = "Close"
         else:
             rating = "Far"
-    elif direction in ["Left", "Right"]:
-        interval = SAFE_DISTANCE_FROM_OBSTACLE/2.5
+    elif direction in ["Left", "Right", "Upper Left", "Upper Right", "Lower Left", "Lower Right"]:
+        interval = SAFE_DISTANCE_FROM_OBSTACLE/2
         if distance <= interval * 1.5:
             rating = "Too Close"
         elif distance <= (interval * 2.2):
             rating = "Close"
-        elif distance <= (interval * 3.4):
+        elif distance <= (interval * 3.5):
             rating = "OK"
-        elif distance <= (interval * 4.5):
-            rating = "Far"
         else:
-            rating = "Too Far"
+            rating = "Far"
     return rating
 
 
 def get_current_state(message,args):
     ranges_data = message.ranges
 
-    global LASERSCAN_MAX_RANGE
-    LASERSCAN_MAX_RANGE = message.range_max 
-
-
     player_type = args["player_type"]
     verbose = args["verbose"]
 
     front_sector = range(0,45) + range(315,360)
-    left_sector = range(45,135) 
-    right_sector = range(225,315) 
-
+    
+    upper_left_sector = range(45,90)
+    lower_left_sector = range(90,135)
+   
+    upper_right_sector = range(270,315)
+    lower_right_sector = range(225,270) 
+   
     # use the smallest distance detected at each directional state
-    min_front, min_left, min_right = [float("inf") for i in range(0,3)]
+    min_front, min_upper_left, min_lower_left, min_upper_right, min_lower_right = [float("inf") for i in range(0,5)]
 
     for angle in front_sector:
         min_front = min(min_front, ranges_data[angle])
-    for angle in left_sector:
-        min_left = min(min_left, ranges_data[angle])
-    for angle in right_sector:
-        min_right = min(min_right, ranges_data[angle])
+    for angle in upper_left_sector:
+        min_upper_left = min(min_upper_left, ranges_data[angle])
+    for angle in lower_left_sector:
+        min_lower_left = min(min_lower_left, ranges_data[angle])
+    for angle in upper_right_sector:
+        min_upper_right = min(min_upper_right, ranges_data[angle])
+    for angle in lower_right_sector:
+        min_lower_right = min(min_lower_right, ranges_data[angle])
+    
 
     if player_type == "pursuer":
         global PURSUER_STATE_DISCRETIZED 
         
         PURSUER_STATE_DISCRETIZED = {
             "Front": get_distance_rating("Front", min_front), \
-            "Left" : get_distance_rating("Left", min_left), \
-            "Right": get_distance_rating("Right", min_right), \
+            "Upper Left" : get_distance_rating("Upper Left", min_upper_left), \
+            "Upper Right": get_distance_rating("Upper Right", min_upper_right), \
+            "Lower Left": get_distance_rating( "Lower Left", min_lower_left), \
+            "Lower Right": get_distance_rating("Lower Right", min_lower_right), \
             "Opponent Position": get_opponent_position_rating(PURSUER_POSITION, EVADER_POSITION)
         }
 
         global PURSUER_MIN_DISTANCE_TO_OBSTACLE 
-        PURSUER_MIN_DISTANCE_TO_OBSTACLE= min([min_front, min_left, min_right])
+        PURSUER_MIN_DISTANCE_TO_OBSTACLE= min([ min_front, min_upper_left, min_lower_left, min_upper_right, min_lower_right ])
         
         if verbose:
             rospy.loginfo("Pursuer's state: {}".format(PURSUER_STATE_DISCRETIZED))
-            rospy.loginfo("Reward of pursuer's state: {}".format(reward_function("pursuer", PURSUER_STATE_DISCRETIZED)))
+            rospy.loginfo("Reward of pursuer's state: {}".format(reward_function("pursuer", PURSUER_STATE_DISCRETIZED, verbose=True)))
     else:
         global EVADER_STATE_DISCRETIZED 
         EVADER_STATE_DISCRETIZED = {
             "Front": get_distance_rating("Front", min_front), \
-            "Left" : get_distance_rating("Left", min_left), \
-            "Right": get_distance_rating("Right", min_right), \
-            "Opponent Position": get_opponent_position_rating( EVADER_POSITION, PURSUER_POSITION)
+            "Upper Left" : get_distance_rating("Upper Left", min_upper_left), \
+            "Upper Right": get_distance_rating("Upper Right", min_upper_right), \
+            "Lower Left": get_distance_rating( "Lower Left", min_lower_left), \
+            "Lower Right": get_distance_rating("Lower Right", min_lower_right), \
+            "Opponent Position": get_opponent_position_rating(EVADER_POSITION, PURSUER_POSITION)
         }
 
         global EVADER_DISTANCE_FROM_NEAREST_OBSTACLE 
-        EVADER_DISTANCE_FROM_NEAREST_OBSTACLE= min(min_front, min_left, min_right)
+        EVADER_DISTANCE_FROM_NEAREST_OBSTACLE= min([ min_front, min_upper_left, min_lower_left, min_upper_right, min_lower_right ])
 
         if verbose:
             rospy.loginfo("Evader's state: {}".format(EVADER_STATE_DISCRETIZED))
-            rospy.loginfo("Reward of evader's state: {}".format(reward_function("evader", EVADER_STATE_DISCRETIZED)))
+            rospy.loginfo("Reward of evader's state: {}".format(reward_function("evader", EVADER_STATE_DISCRETIZED, verbose=False)))
 
 def get_robot_location(message, args):
     player_type = args["player_type"]
@@ -290,18 +318,25 @@ def create_q_table(player_type = "pursuer"):
     is a lot higher than the q-values for other neutral actions.
  
     """
+    # FRONT_RATINGS = ["Close", "OK", "Far"]
+    # UPPER_LEFT_RATINGS = ["Too Close", "Close", "OK", "Far"]
+    # UPPER_RIGHT_RATINGS = ["Too Close", "Close", "OK", "Far"]
+    # LOWER_LEFT_RATINGS = ["Too Close", "Close", "OK", "Far"]
+    # LOWER_RIGHT_RATINGS = ["Too Close", "Close", "OK", "Far"]
     
     q_table = {}
     all_states = []
-    _get_permutations(0, [FRONT_RATINGS,LEFT_RATINGS,RIGHT_RATINGS, OPPONENT_RATINGS], list(), 4, all_states)
+    _get_permutations(0, [FRONT_RATINGS,UPPER_LEFT_RATINGS, UPPER_RIGHT_RATINGS, LOWER_LEFT_RATINGS, LOWER_RIGHT_RATINGS, OPPONENT_RATINGS], list(), 6, all_states)
     
     all_actions = []
     _get_permutations(0,[TRANSLATION_SPEED, ROTATIONAL_ACTIONS],list(),2, all_actions)
 
     for state in all_states:
         # unpack tuple to get corresponding distance ratings for each direction
-        front_rating, left_rating, right_rating, opponent_rating = state
-        state_dictionary = ({"Front": front_rating,  "Left": left_rating, "Right": right_rating, "Opponent Positon": opponent_rating})
+        front_rating, upper_left_rating, upper_right_rating, lower_left_rating, lower_right_rating, opponent_rating = state
+        state_dictionary = ({"Front": front_rating,  "Upper Left": upper_left_rating, \
+                             "Upper Right": upper_right_rating, "Lower Left": lower_left_rating, \
+                             "Lower Right": lower_right_rating, "Opponent Positon": opponent_rating})
         # convert state (originally a list) to a tuple which is hashable 
         # and could be stored in the Q_table which is a dictionary
         state_tuple = tuple(state)
@@ -421,6 +456,7 @@ def get_policy(q_table, state_dictionary, verbose = True, epsilon = 1.0):
             exploration_flag = True 
         
         # check if action returned is a tuple of (translation_velocity, angular_velocity) to be backward compatible with the older q-table
+        # assuming that the state discretizations are not changed.
         # I fixed my translational speed to be 0.2 during my previous attempts, so the chosen_action back then was a single integer
         # indicating the angular velocity
         if isinstance(chosen_action, (tuple,list)):
@@ -451,7 +487,7 @@ def q_learning_td(player_type, q_table, learning_rate, epsilon, discount_factor,
         opponent_position = np.array(PURSUER_POSITION[:2])    
     
     rospy.loginfo("Epsilon: {}".format(epsilon))
-    rospy.loginfo("{}_current State: {}".format(player_type , current_state))
+    # rospy.loginfo("{}_current State: {}".format(player_type , current_state))
     # get action A from S using policy
     chosen_action = get_policy(q_table, current_state, verbose = False, epsilon= epsilon)
     translation_speed, turn_action = chosen_action
@@ -464,7 +500,7 @@ def q_learning_td(player_type, q_table, learning_rate, epsilon, discount_factor,
     # robot is now in new state S' and observe reward R(S') 
     new_state = PURSUER_STATE_DISCRETIZED if (player_type == "pursuer") else EVADER_STATE_DISCRETIZED
     reward = reward_function(player_type, new_state)
-    rospy.loginfo("{}'s reward: {}".format(player_type, reward))
+    # rospy.loginfo("{}'s reward: {}".format(player_type, reward))
     
     # update Q-value for Q(S,A)
     # Q(S,A) = Q(S,A) +  learning_rate*(reward + discount_factor* (argmax_A' Q(S', A')) - Q(S,A))
@@ -484,14 +520,14 @@ def random_walk_behavior(robot_type, robot_state, random_action_chance = 0.2):
     else:
         is_stuck = PURSUER_STUCK
 
-    if robot_state["Front"] == "Close" and robot_state["Left"] == "Too Close" and robot_state["Right"] == "Too Close" and is_stuck:
+    if robot_state["Front"] == "Close" and robot_state["Upper Left"] == "Too Close" and robot_state["Upper Right"] == "Too Close" and is_stuck:
         translation_speed = -0.1 
         turn_angle = -60
     elif robot_state["Front"] == "Close" and is_stuck:
-        translation_speed = -0.2
+        translation_speed = -0.35
         turn_angle = -60
     else:
-        translation_speed = 0.2 
+        translation_speed = 0.25 
         # 20% chance of making random turns
         if (random.random() < 0.2):
             turn_angle = random.randint(0,359)
@@ -677,7 +713,7 @@ def train(train_type = "both", total_episodes = 1000, learning_rate = 0.2, disco
             
             # keep track of how many times the pursuer managed to tag the evader
             if PURSUER_STATE_DISCRETIZED["Opponent Position"] == "Tagged":
-                num_tagged+=1
+                num_tagged += 1
 
             current_episode += 1
             training_reward += accumulated_reward
@@ -703,7 +739,7 @@ def train(train_type = "both", total_episodes = 1000, learning_rate = 0.2, disco
                 q_table_file.seek(0)
                 q_table_file.write(pickle.dumps(q_table_player)) 
             rospy.loginfo("Saved Q-Table_{}".format(player_to_train))
-            rospy.loginfo("Num tags = {}, Tag rate = {}".format(num_tagged, num_tagged/total_episodes))
+            rospy.loginfo("Num tags = {}, Episodes so far {}".format(num_tagged, current_episode + 1))
 
 
 def test(player_type, total_episodes = 2, episode_time_limit=30, time_to_apply_action = 0.33):
@@ -779,7 +815,8 @@ def test(player_type, total_episodes = 2, episode_time_limit=30, time_to_apply_a
                 current_state = PURSUER_STATE_DISCRETIZED
             else:
                 current_state = EVADER_STATE_DISCRETIZED
-            accumulated_reward += reward_function(player_type, current_state)
+            
+            accumulated_reward += reward_function(player_type, current_state, verbose=False)
 
             if current_state["Opponent Position"] == "Tagged":
                 num_tagged += 1
@@ -820,7 +857,7 @@ def main():
     global EVADER_POSITION_SUBSCRIBER 
     global EVADER_CMD_PUBLISHER 
     # get pursuer's LaserScan reading to process and yield pursuer's current state
-    PURSUER_SCAN_SUBSCRIBER = rospy.Subscriber("/pursuer/scan", LaserScan, callback=get_current_state, callback_args={"player_type" : "pursuer" ,"verbose": True})
+    PURSUER_SCAN_SUBSCRIBER = rospy.Subscriber("/pursuer/scan", LaserScan, callback=get_current_state, callback_args={"player_type" : "pursuer" ,"verbose": False})
     # repeat with evader
     EVADER_SCAN_SUBSCRIBER = rospy.Subscriber("/evader/scan", LaserScan, callback=get_current_state, callback_args={"player_type" : "evader" ,"verbose": False})
 
@@ -845,11 +882,11 @@ def main():
                 global Q_TABLE_EVADER
                 Q_TABLE_EVADER = pickle.load(q_table_file)
     
-    # train(train_type = "pursuer", starting_epsilon=0.55, total_episodes=15000)
+    train(train_type = "pursuer", starting_epsilon=0.1, total_episodes=30000)
 
-    successfully_loaded = load_q_table(q_table_name="q_table_pursuer_best_training.txt", player_type="pursuer")
-    if successfully_loaded:
-        test("pursuer", total_episodes= 100, episode_time_limit=60)
+    # successfully_loaded = load_q_table(q_table_name="q_table_pursuer_best_training.txt", player_type="pursuer")
+    # if successfully_loaded:
+    #     test("pursuer", total_episodes= 100, episode_time_limit=60)
     
     
     # rospy.spin()
