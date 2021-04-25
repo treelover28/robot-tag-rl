@@ -40,14 +40,14 @@ DISTANCE_BETWEEN_PLAYERS = None
 # STARTING_LOCATIONS = [(0,1), (-2,1), (0,-1), (0,1.5), (0,-1.5), (-2,-1), (0.5,0), (-2,1.5)]
 
 # for ros pillars map
-STARTING_LOCATIONS = [(0,1), (-2,1), (0,-1), (0,1.5), (0,-2), (0,2)]
+STARTING_LOCATIONS = [(0,1), (-1,0), (0,-1), (1,0), (-1,-2), (-1,2)]
 # State Space Hyperparameters
 SAFE_DISTANCE_FROM_OBSTACLE = 0.3
 ROTATIONAL_ACTIONS = [60,45,20,0,-20,-45,-60]
 # slow speed 0.1 to help it slow down when near obstacle
 # regular speed is 0.2 
 # accelerated speed to help it speed up and catch the evader when it is nearby
-TRANSLATION_SPEED = [0.05, 0.2, 0.35]
+TRANSLATION_SPEED = [0.1, 0.2, 0.35]
 DIRECTIONAL_STATES = ["Front", "Upper Left", "Upper Right", "Lower Left", "Lower Right","Opponent Position"]
 FRONT_RATINGS = ["Close", "OK", "Far"]
 UPPER_LEFT_RATINGS = ["Too Close", "Close", "OK", "Far"]
@@ -96,7 +96,7 @@ def reward_function(player_type, state, verbose = True):
                    DISTANCE_BETWEEN_PLAYERS > PURSUER_MIN_DISTANCE_TO_OBSTACLE * 1.25): 
             
             state_description = "Obstacle is a lot nearer compared to evader. Prioritize obstacle avoidance"
-            reward = -1 - sigmoid(1/DISTANCE_BETWEEN_PLAYERS) - sigmoid(1/PURSUER_MIN_DISTANCE_TO_OBSTACLE)
+            reward = -1 - sigmoid(DISTANCE_BETWEEN_PLAYERS) - sigmoid(1/PURSUER_MIN_DISTANCE_TO_OBSTACLE)
             # if the other robot is nearby and there is an obstacle, there is a chance that obstacle 
             # may be the other robot, so we encourage those states
             # or if the distance between players are very close
@@ -109,15 +109,15 @@ def reward_function(player_type, state, verbose = True):
                        (DISTANCE_BETWEEN_PLAYERS <= SAFE_DISTANCE_FROM_OBSTACLE * 1.2):
             state_description = "Evader is nearby and we are relatively safe from obstacles"
             reward = sigmoid(1/DISTANCE_BETWEEN_PLAYERS) * 2.5 
-        elif state["Opponent Position"] == "Front":
+        elif state["Opponent Position"] == "Front" and DISTANCE_BETWEEN_PLAYERS <= 1.0:
             # encourage robot to orient itself such that the opponent is directly in front of it
             # take away the sigmoid of the distance to encourage it to minimize such distance 
-            state_description = "Evader is in front!"
-            reward = 2* sigmoid(1/DISTANCE_BETWEEN_PLAYERS)
+            state_description = "Evader is in front and close enough by!"
+            reward = sigmoid(1/DISTANCE_BETWEEN_PLAYERS)
         # there is no obstacle nearby and the target evader is far away
         elif DISTANCE_BETWEEN_PLAYERS >= PURSUER_MIN_DISTANCE_TO_OBSTACLE and PURSUER_MIN_DISTANCE_TO_OBSTACLE >= SAFE_DISTANCE_FROM_OBSTACLE:
             state_description = "No obstacle nearby and evader is also not nearby"
-            reward = -0.5 - sigmoid(1/DISTANCE_BETWEEN_PLAYERS)
+            reward = -0.5 - sigmoid(DISTANCE_BETWEEN_PLAYERS)
         else:
             state_description = "Neutral state"
             reward = 0
@@ -354,6 +354,30 @@ def create_q_table(player_type = "pursuer"):
         q_table_file.seek(0)
         q_table_file.write(pickle.dumps(q_table)) 
 
+def replace_speed_in_q_table(q_table_name, old_speed, new_speed):
+    with open(q_table_name, "rb") as q_table_file:
+        # loads copy of q-table in
+        q_table = pickle.load(q_table_file)
+        for state in q_table:
+            action_q_values = q_table[state]
+            for action in action_q_values:
+                speed_0, angle_0 = action
+                if speed_0 == old_speed:
+                    # create new action as key
+                    new_action = (new_speed, angle_0)
+                    # remove old action and retrives its q-value, set to 0 if old action is not found => this scenerio will never happen
+                    q_value = action_q_values.pop(action,0)
+                    # re-insert new action as new key with the q_value
+                    action_q_values[new_action] = q_value
+    with open("replaced_{}".format(q_table_name), "w") as replacement_q_table_file:
+        replacement_q_table_file.seek(0)
+        replacement_q_table_file.write(pickle.dumps(q_table))
+    
+
+
+
+
+
 def _get_permutations(current_list_index, lists, prefix, k, states_accumulator):
     """ Helper function to generate all permutations of length n with replacements
     using elements in choices list. The prefix is the current partial permutation
@@ -538,19 +562,25 @@ def random_walk_behavior(robot_type, robot_state, random_action_chance = 0.2):
     return (translation_speed, turn_angle)
 
 
-def follow_policy(player_type, q_table):
+def follow_policy(player_type, q_table, time_to_apply_action = 0.33):
     if player_type == "pursuer":
         current_state = PURSUER_STATE_DISCRETIZED
         translation_velocity, angular_velocity = get_policy(q_table, current_state, verbose= False, epsilon = 1.0)
+
     elif player_type == "evader":
         current_state = EVADER_STATE_DISCRETIZED
         translation_velocity, angular_velocity = random_walk_behavior(robot_type="evader", robot_state=current_state)
     
     move_robot(player_type, translation_velocity, angular_velocity)
-    rospy.sleep(0.33)
+    rospy.sleep(time_to_apply_action)
 
-def is_stuck(last_few_positions):
-    # rospy.loginfo("Checking is stuck")
+def is_stuck(last_few_positions, robot_state):
+    # Checking if the robot is stuck requires info about 
+    # whether it is near an obstacle and if its location has not changed in a while.
+    #  
+    # Checking if the location hasn't changed alone is not sufficient 
+    # since the robot could be moving very slowly => the algorithm thinks it is stuck
+    is_stuck = False
     if last_few_positions is not None:
         changes_in_x = 0
         changes_in_y = 0
@@ -559,8 +589,18 @@ def is_stuck(last_few_positions):
             changes_in_y += abs(last_few_positions[i][1] - last_few_positions[i - 1][1])
         # if accumulated changes in both coordinates are less than a very small number, 
         # the robot is probably stuck
-        return changes_in_x < 0.05 and changes_in_y < 0.05
-    return False
+        # is_near_obstacle = (robot_state["Upper Left"]  == "Too Close" or \
+        #        robot_state["Upper Right"] == "Too Close" or \
+        #        robot_state["Lower Left"] == "Too Close"  or \
+        #        robot_state["Lower Right"] == "Too Close" or \
+        #        robot_state["Front"] == "Close")
+        
+        is_near_obstacle = robot_state["Front"] == "Close" 
+    
+        is_in_same_place = changes_in_x < 0.05 and changes_in_y < 0.05
+        # the robot is consider stuck of it is near an obstacle and hasn't changed position in a while
+        is_stuck = is_near_obstacle and is_in_same_place
+    return is_stuck
 
 def is_terminal_state(train_type, time_elapsed, episode_time_limit, pursuer_stuck, evader_stuck, opponent_rating):
     if opponent_rating == "Tagged": 
@@ -610,7 +650,7 @@ def train(train_type = "both", total_episodes = 1000, learning_rate = 0.2, disco
     plt.xlabel("Training episode")
     plt.ylabel("Accumulated rewards")
     plt.xlim(0 , total_episodes)
-    plt.ylim(-100, 50)
+    plt.ylim(-100, 100)
     plt.legend(loc="upper left")
     plt.axhline(y= 0, color = "g", linestyle = "-")
     plt.show(block=False)
@@ -690,11 +730,11 @@ def train(train_type = "both", total_episodes = 1000, learning_rate = 0.2, disco
                 
                 # check if robots are stuck, the robot is considered stuck if it has been in the same location for >= 1.5 seconds
                 if len(last_few_pursuer_positions) == int(1.5/time_to_apply_action):
-                    PURSUER_STUCK = is_stuck(last_few_pursuer_positions)    
+                    PURSUER_STUCK = is_stuck(last_few_pursuer_positions, robot_state=PURSUER_STATE_DISCRETIZED)    
                     del last_few_pursuer_positions[0]
                     
                 if len(last_few_evader_positions) == int(1.5/time_to_apply_action):
-                    EVADER_STUCK = is_stuck(last_few_evader_positions)
+                    EVADER_STUCK = is_stuck(last_few_evader_positions, robot_state= EVADER_STATE_DISCRETIZED)
                     del last_few_evader_positions[0]
 
                 last_few_pursuer_positions.append(PURSUER_POSITION[:2])
@@ -787,13 +827,13 @@ def test(player_type, total_episodes = 2, episode_time_limit=30, time_to_apply_a
             
             # check if robots are stuck, the robot is considered stuck if it has been in the same location for >= 2.50 seconds
             if len(last_few_pursuer_positions) == int(1.5/time_to_apply_action):
-                PURSUER_STUCK = is_stuck(last_few_pursuer_positions)
+                PURSUER_STUCK = is_stuck(last_few_pursuer_positions, robot_state=PURSUER_STATE_DISCRETIZED)
                 if PURSUER_STUCK:
                     num_stuck +=1    
                 del last_few_pursuer_positions[0]
                 
             if len(last_few_evader_positions) == int(1.5/time_to_apply_action):
-                EVADER_STUCK = is_stuck(last_few_evader_positions)
+                EVADER_STUCK = is_stuck(last_few_evader_positions, robot_state=EVADER_STATE_DISCRETIZED)
                 del last_few_evader_positions[0]
 
             last_few_pursuer_positions.append(PURSUER_POSITION[:2])
@@ -803,13 +843,9 @@ def test(player_type, total_episodes = 2, episode_time_limit=30, time_to_apply_a
             thread = threading.Thread(target = follow_policy, args=(opponent_to_test, q_table_opponent))
             thread.start()
 
-            # get action A from S using policy
-            translation_speed, turn_action = get_policy(q_table_current, current_state, verbose = False, epsilon= 1)
-            # take action A and move player, this would change the player's state
-            # rospy.loginfo("Chosen action {}".format(action))
-            move_robot(player_type, translation_speed, turn_action)
-            # give the robot some time to apply action => proper state transition
-            rospy.sleep(time_to_apply_action)
+            # follow Q-table to move robot
+            follow_policy(player_type=player_type,q_table= q_table_current, time_to_apply_action=time_to_apply_action)
+            
             # observe rewards of new state
             if player_type == "pursuer":
                 current_state = PURSUER_STATE_DISCRETIZED
@@ -882,18 +918,16 @@ def main():
                 global Q_TABLE_EVADER
                 Q_TABLE_EVADER = pickle.load(q_table_file)
     
-    train(train_type = "pursuer", starting_epsilon=0.1, total_episodes=30000)
+    # train(train_type = "pursuer", starting_epsilon=0.4, total_episodes=20000)
+    replace_speed_in_q_table("q_table_pursuer_best_testing.txt",0.1,0.11)
 
-    # successfully_loaded = load_q_table(q_table_name="q_table_pursuer_best_training.txt", player_type="pursuer")
-    # if successfully_loaded:
-    #     test("pursuer", total_episodes= 100, episode_time_limit=60)
+    successfully_loaded = load_q_table(q_table_name="replaced_q_table_pursuer_best_testing.txt", player_type="pursuer")
+    if successfully_loaded:
+        test("pursuer", total_episodes= 100, episode_time_limit=60)
     
     
     # rospy.spin()
 
-    # successfully_loaded = load_q_table(q_table_name="q_table_pursuer_best_testing_0.2_with_60_turns.txt", player_type="pursuer")
-    # if successfully_loaded:
-    #     test("pursuer", total_episodes= 100, episode_time_limit=40)
  
 
 if __name__ == "__main__":
