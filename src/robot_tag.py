@@ -37,10 +37,10 @@ PURSUER_MIN_DISTANCE_TO_OBSTACLE = None
 DISTANCE_BETWEEN_PLAYERS = None
 
 # for ros_plaza
-# STARTING_LOCATIONS = [(0,1), (-2,1), (0,-1), (0,1.5), (0,-1.5), (-2,-1), (0.5,0), (-2,1.5)]
+STARTING_LOCATIONS = [(0,1.2), (-2,1), (0,-1), (0,1.5), (0,-2), (-2,-1), (0.5,0), (-2,1.8),(1,0), (1,-2)]
 
 # for ros pillars map
-STARTING_LOCATIONS = [(0,1), (-1,0), (0,-1), (1,0), (-1,-2), (-1,2)]
+# STARTING_LOCATIONS = [(0,1), (-1,0), (0,-1), (1,0), (-1,-2), (-1,2)]
 # State Space Hyperparameters
 SAFE_DISTANCE_FROM_OBSTACLE = 0.3
 ROTATIONAL_ACTIONS = [60,45,20,0,-20,-45,-60]
@@ -96,6 +96,7 @@ def reward_function(player_type, state, verbose = True):
                    DISTANCE_BETWEEN_PLAYERS > PURSUER_MIN_DISTANCE_TO_OBSTACLE * 1.25): 
             
             state_description = "Obstacle is a lot nearer compared to evader. Prioritize obstacle avoidance"
+            # extra punishment depending on how far the evader is and how close the pursuer is to an obstacle
             reward = -1 - sigmoid(DISTANCE_BETWEEN_PLAYERS) - sigmoid(1/PURSUER_MIN_DISTANCE_TO_OBSTACLE)
             # if the other robot is nearby and there is an obstacle, there is a chance that obstacle 
             # may be the other robot, so we encourage those states
@@ -699,7 +700,7 @@ def train(train_type = "both", total_episodes = 1000, learning_rate = 0.2, disco
             # including episode 0 => baseline for how robot is doing pre-training
             if current_episode % 100 == 0:
                 rospy.loginfo("Testing policy learned so far")
-                test_reward = test(player_to_train, total_episodes = 10)
+                test_reward = test(player_to_train, total_episodes = 10, episode_time_limit=episode_time_limit)
                 if test_reward > best_test_score:
                     # save the policy into a seperate Q-table everytime it achieve a high on the testing phase
                     # save q-table
@@ -918,12 +919,12 @@ def main():
                 global Q_TABLE_EVADER
                 Q_TABLE_EVADER = pickle.load(q_table_file)
     
-    # train(train_type = "pursuer", starting_epsilon=0.4, total_episodes=20000)
-    replace_speed_in_q_table("q_table_pursuer_best_testing.txt",0.1,0.11)
+    train(train_type = "pursuer", starting_epsilon=0.4, total_episodes=25000, episode_time_limit=45)
+    # replace_speed_in_q_table("q_table_pursuer_best_testing.txt",0.1,0.11)
 
-    successfully_loaded = load_q_table(q_table_name="replaced_q_table_pursuer_best_testing.txt", player_type="pursuer")
-    if successfully_loaded:
-        test("pursuer", total_episodes= 100, episode_time_limit=60)
+    # successfully_loaded = load_q_table(q_table_name="q_table_pursuer_best_testing.txt", player_type="pursuer")
+    # if successfully_loaded:
+    #     test("pursuer", total_episodes= 100, episode_time_limit=60)
     
     
     # rospy.spin()
