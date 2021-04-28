@@ -37,17 +37,20 @@ PURSUER_MIN_DISTANCE_TO_OBSTACLE = None
 DISTANCE_BETWEEN_PLAYERS = None
 
 # for ros_plaza
-STARTING_LOCATIONS = [(0,1.2), (-2,1), (0,-1), (0,1.5), (0,-2), (-2,-1), (0.5,0), (-2,1.8),(1,0), (1,-2)]
+# STARTING_LOCATIONS = [(0,1.2), (-2,1), (0,-1), (0,1.5), (0,-2), (-2,-1), (0.5,0), (-2,1.8),(1,0), (1,-2)]
 
 # for ros pillars map
 # STARTING_LOCATIONS = [(0,1), (-1,0), (0,-1), (1,0), (-1,-2), (-1,2)]
+
+STARTING_LOCATIONS = [(0,0.5), (0.5,0), (0,-0.5), (0.5,0), (-1,-2), (-1,2)]
+
 # State Space Hyperparameters
 SAFE_DISTANCE_FROM_OBSTACLE = 0.3
 ROTATIONAL_ACTIONS = [60,45,20,0,-20,-45,-60]
 # slow speed 0.1 to help it slow down when near obstacle
 # regular speed is 0.2 
 # accelerated speed to help it speed up and catch the evader when it is nearby
-TRANSLATION_SPEED = [0.1, 0.2, 0.35]
+TRANSLATION_SPEED = [0.075, 0.2, 0.35]
 DIRECTIONAL_STATES = ["Front", "Upper Left", "Upper Right", "Lower Left", "Lower Right","Opponent Position"]
 FRONT_RATINGS = ["Close", "OK", "Far"]
 UPPER_LEFT_RATINGS = ["Too Close", "Close", "OK", "Far"]
@@ -919,10 +922,10 @@ def main():
                 global Q_TABLE_EVADER
                 Q_TABLE_EVADER = pickle.load(q_table_file)
     
-    train(train_type = "pursuer", starting_epsilon=0.4, total_episodes=25000, episode_time_limit=45)
-    # replace_speed_in_q_table("q_table_pursuer_best_testing.txt",0.1,0.11)
+    train(train_type = "pursuer", starting_epsilon=0.1, total_episodes=35000, episode_time_limit=45)
+    # replace_speed_in_q_table("q_table_pursuer.txt",0.1,0.075)
 
-    # successfully_loaded = load_q_table(q_table_name="q_table_pursuer_best_testing.txt", player_type="pursuer")
+    # successfully_loaded = load_q_table(q_table_name="q_table_pursuer_best_testing_new_state_design_30k_55%_tag_rate.txt", player_type="pursuer")
     # if successfully_loaded:
     #     test("pursuer", total_episodes= 100, episode_time_limit=60)
     
