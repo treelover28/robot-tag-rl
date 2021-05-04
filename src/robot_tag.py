@@ -40,17 +40,17 @@ DISTANCE_BETWEEN_PLAYERS = None
 # STARTING_LOCATIONS = [(0,1.2), (-2,1), (0,-1), (0,1.5), (0,-2), (-2,-1), (0.5,0), (-2,1.8),(1,0), (1,-2)]
 
 # for ros pillars map
-STARTING_LOCATIONS = [(0,1), (-1,0), (0,-1), (1,0), (-1,-2), (-1,2)]
-
-# STARTING_LOCATIONS = [(0,0.5), (0.5,0), (0,-0.5), (0.5,0), (-1,-2), (-1,2)]
+# STARTING_LOCATIONS = [(0,1), (-1,0), (0,-1), (1,0), (-1,-2), (-1,2)]
+# for original ros map with all the pillars 
+STARTING_LOCATIONS = [(0,0.5), (0.5,0), (0,-0.5), (0.5,0), (-1,-2), (-1,2)]
 
 # State Space Hyperparameters
-SAFE_DISTANCE_FROM_OBSTACLE = 0.3
+SAFE_DISTANCE_FROM_OBSTACLE = 0.35
 ROTATIONAL_ACTIONS = [65,45,20,0,-20,-45,-65]
 # slow speed 0.1 to help it slow down when near obstacle
 # regular speed is 0.2 
-# accelerated speed to help it speed up and catch the evader when it is nearby
-TRANSLATION_SPEED = [0.125, 0.2, 0.35]
+# negative velocity is to help it reverse and rescue itself whenever it gets stuck
+TRANSLATION_SPEED = [0.1, 0.2]
 DIRECTIONAL_STATES = ["Front", "Upper Left", "Upper Right", "Lower Left", "Lower Right","Opponent Position"]
 FRONT_RATINGS = ["Close", "OK", "Far"]
 UPPER_LEFT_RATINGS = ["Too Close", "Close", "OK", "Far"]
@@ -108,15 +108,19 @@ def reward_function(player_type, state, verbose = True):
                (state["Upper Right"] in ["Close", "Too Close"] and state["Opponent Position"] != "Close Right") or \
                (state["Lower Left"] in ["Close", "Too Close"] and state["Opponent Position"] != "Close Left") or \
                (state["Lower Right"] in ["Close", "Too Close"] and state["Opponent Position"] != "Close Right"))
-            ) and\
-                TRUE_DISTANCE_BETWEEN_PLAYER > PURSUER_MIN_DISTANCE_TO_OBSTACLE: 
+            ) and TRUE_DISTANCE_BETWEEN_PLAYER > PURSUER_MIN_DISTANCE_TO_OBSTACLE\
+              and PURSUER_MIN_DISTANCE_TO_OBSTACLE_DIRECTION != "Front": 
 
             state_description = "Obstacle is a lot nearer on the sides compared to evader. Prioritize obstacle avoidance"
             # extra punishment depending on how far the evader is and how close the pursuer is to an obstacle
             reward = -1 - sigmoid(TRUE_DISTANCE_BETWEEN_PLAYER) - sigmoid(1/PURSUER_MIN_DISTANCE_TO_OBSTACLE)
-        
+        # there is an obstacle in front that is not the opponent
+        elif (state["Front"] == "Close" or (PURSUER_MIN_DISTANCE_TO_OBSTACLE_DIRECTION == "Front" and PURSUER_MIN_DISTANCE_TO_OBSTACLE <= TRUE_SAFE_DISTANCE_FROM_OBSTACLE))\
+            and state["Opponent Position"] not in  ["Front", "Close Front"]:
+            state_description = "Obstacle directly infront that is not the opponent. Prioritize obstacle avoidance"
+            reward = -0.5 - sigmoid(TRUE_DISTANCE_BETWEEN_PLAYER) - sigmoid(1/PURSUER_MIN_DISTANCE_TO_OBSTACLE)
         # check for special case where opponent is directly in front, yet behind an obstacle, so robot priotize obstacle avoidance
-        elif state["Front"] == "Close" and state["Opponent Position"] != "Close Front" \
+        elif state["Front"] == "Close" and state["Opponent Position"] == "Front" \
             and TRUE_DISTANCE_BETWEEN_PLAYER >= PURSUER_MIN_DISTANCE_TO_OBSTACLE\
             and PURSUER_MIN_DISTANCE_TO_OBSTACLE < TRUE_SAFE_DISTANCE_FROM_OBSTACLE\
             and PURSUER_MIN_DISTANCE_TO_OBSTACLE_DIRECTION == "Front":
@@ -127,7 +131,6 @@ def reward_function(player_type, state, verbose = True):
         # else if the evader is in front and closeby, and we are relatively safe from obstacles on either sides
         elif state["Opponent Position"] == "Front" and TRUE_DISTANCE_BETWEEN_PLAYER <= 1.0 and\
             TRUE_DISTANCE_BETWEEN_PLAYER <= PURSUER_MIN_DISTANCE_TO_OBSTACLE:
-
             # encourage robot to orient itself such that the opponent is directly in front of it
             # take away the sigmoid of the distance to encourage it to minimize such distance 
             state_description = "Evader is in front and close enough by, and we are relatively safe from obstacle!"
@@ -148,7 +151,7 @@ def reward_function(player_type, state, verbose = True):
             state_description = "Evader is nearby and we are relatively safe from obstacles"
             reward = sigmoid(1/TRUE_DISTANCE_BETWEEN_PLAYER) * 2.5 
         # there is no obstacle nearby and the target evader is far away
-        elif (DISTANCE_BETWEEN_PLAYERS - BURGER_RADIUS) >= PURSUER_MIN_DISTANCE_TO_OBSTACLE and PURSUER_MIN_DISTANCE_TO_OBSTACLE >= TRUE_SAFE_DISTANCE_FROM_OBSTACLE:
+        elif TRUE_DISTANCE_BETWEEN_PLAYER >= PURSUER_MIN_DISTANCE_TO_OBSTACLE and PURSUER_MIN_DISTANCE_TO_OBSTACLE >= TRUE_SAFE_DISTANCE_FROM_OBSTACLE:
             state_description = "No obstacle nearby and evader is also not nearby"
             reward = -0.5 - sigmoid(TRUE_DISTANCE_BETWEEN_PLAYER)
         else:
@@ -213,6 +216,11 @@ def reward_function(player_type, state, verbose = True):
 
 
 def get_opponent_position_rating(player_A, player_B):
+    if player_A == PURSUER_POSITION:
+        TRUE_SAFE_DISTANCE_FROM_OBSTACLE = WAFFLE_RADIUS + SAFE_DISTANCE_FROM_OBSTACLE
+    else:
+        TRUE_SAFE_DISTANCE_FROM_OBSTACLE = BURGER_RADIUS + SAFE_DISTANCE_FROM_OBSTACLE
+    
     
     player_A_position = np.array(player_A[:3])
     player_A_orientation = np.array(player_A[3:])
@@ -259,25 +267,32 @@ def get_opponent_position_rating(player_A, player_B):
         direction_rating = "Bottom"
     
     distance_rating = ""
-    if distance <= SAFE_DISTANCE_FROM_OBSTACLE * 1.3:
+    if distance <= TRUE_SAFE_DISTANCE_FROM_OBSTACLE * 1.2:
         distance_rating = "Close"
     
     return (distance_rating + " " + direction_rating).strip()
 
-def get_distance_rating(direction, distance):
+def get_distance_rating(direction, distance, player_type):
+
+    if player_type == "pursuer":
+        TRUE_SAFE_DISTANCE_FROM_OBSTACLE = WAFFLE_RADIUS + SAFE_DISTANCE_FROM_OBSTACLE
+    else:
+        TRUE_SAFE_DISTANCE_FROM_OBSTACLE = BURGER_RADIUS + SAFE_DISTANCE_FROM_OBSTACLE
+    
+    
     if direction == "Front":
-        interval = SAFE_DISTANCE_FROM_OBSTACLE
-        if distance <= (interval * 1.75):
+        interval = TRUE_SAFE_DISTANCE_FROM_OBSTACLE
+        if distance <= interval * 1.2:
             rating = "Close"
         else:
             rating = "Far"
     elif direction in ["Left", "Right", "Upper Left", "Upper Right", "Lower Left", "Lower Right"]:
-        interval = SAFE_DISTANCE_FROM_OBSTACLE/2
-        if distance <= interval * 1.5:
+        interval = TRUE_SAFE_DISTANCE_FROM_OBSTACLE/2
+        if distance <= interval * 1.3:
             rating = "Too Close"
-        elif distance <= (interval * 2.2):
+        elif distance <= (interval * 2):
             rating = "Close"
-        elif distance <= (interval * 3.5):
+        elif distance <= (interval * 3):
             rating = "OK"
         else:
             rating = "Far"
@@ -290,13 +305,21 @@ def get_current_state(message,args):
     player_type = args["player_type"]
     verbose = args["verbose"]
 
-    front_sector = range(0,45) + range(315,360)
+    # front_sector = range(0,45) + range(315,360)
     
-    upper_left_sector = range(45,90)
-    lower_left_sector = range(90,135)
+    # upper_left_sector = range(45,90)
+    # lower_left_sector = range(90,135)
    
-    upper_right_sector = range(270,315)
-    lower_right_sector = range(225,270) 
+    # upper_right_sector = range(270,315)
+    # lower_right_sector = range(225,270) 
+
+    front_sector = range(0,30) + range(330,360)
+    
+    upper_left_sector = range(30,80)
+    lower_left_sector = range(80,130)
+   
+    upper_right_sector = range(270,330)
+    lower_right_sector = range(220,270) 
    
     # use the smallest distance detected at each directional state
     min_front, min_upper_left, min_lower_left, min_upper_right, min_lower_right = [float("inf") for i in range(0,5)]
@@ -317,11 +340,11 @@ def get_current_state(message,args):
         global PURSUER_STATE_DISCRETIZED 
         
         PURSUER_STATE_DISCRETIZED = {
-            "Front": get_distance_rating("Front", min_front), \
-            "Upper Left" : get_distance_rating("Upper Left", min_upper_left), \
-            "Upper Right": get_distance_rating("Upper Right", min_upper_right), \
-            "Lower Left": get_distance_rating( "Lower Left", min_lower_left), \
-            "Lower Right": get_distance_rating("Lower Right", min_lower_right), \
+            "Front": get_distance_rating("Front", min_front, player_type), \
+            "Upper Left" : get_distance_rating("Upper Left", min_upper_left, player_type), \
+            "Upper Right": get_distance_rating("Upper Right", min_upper_right, player_type), \
+            "Lower Left": get_distance_rating( "Lower Left", min_lower_left, player_type), \
+            "Lower Right": get_distance_rating("Lower Right", min_lower_right, player_type), \
             "Opponent Position": get_opponent_position_rating(PURSUER_POSITION, EVADER_POSITION)
         }
 
@@ -344,11 +367,11 @@ def get_current_state(message,args):
     else:
         global EVADER_STATE_DISCRETIZED 
         EVADER_STATE_DISCRETIZED = {
-            "Front": get_distance_rating("Front", min_front), \
-            "Upper Left" : get_distance_rating("Upper Left", min_upper_left), \
-            "Upper Right": get_distance_rating("Upper Right", min_upper_right), \
-            "Lower Left": get_distance_rating( "Lower Left", min_lower_left), \
-            "Lower Right": get_distance_rating("Lower Right", min_lower_right), \
+            "Front": get_distance_rating("Front", min_front, player_type), \
+            "Upper Left" : get_distance_rating("Upper Left", min_upper_left, player_type), \
+            "Upper Right": get_distance_rating("Upper Right", min_upper_right, player_type), \
+            "Lower Left": get_distance_rating( "Lower Left", min_lower_left, player_type), \
+            "Lower Right": get_distance_rating("Lower Right", min_lower_right, player_type), \
             "Opponent Position": get_opponent_position_rating(EVADER_POSITION, PURSUER_POSITION)
         }
 
@@ -619,15 +642,71 @@ def random_walk_behavior(robot_type, robot_state, random_action_chance = 0.2):
         turn_angle = -60
     else:
         translation_speed = 0.25 
+        turn_angle = 0
         # 20% chance of making random turns
-        if (random.random() < 0.2):
-            turn_angle = random.randint(0,359)
-        else:
+        # if (random.random() < 0.2):
+        #     turn_angle = random.randint(0,359)
+        # else:
             # just go straight else
-            turn_angle = 0 
+            # turn_angle = 0 
     # rospy.loginfo("translation_speed: {}, turn_angle {}".format(translation_speed, turn_angle))
     return (translation_speed, turn_angle)
 
+def manual_reorientation(robot_type, time_to_apply_action=0.33):
+    
+    if robot_type == "pursuer":
+        robot_state = PURSUER_STATE_DISCRETIZED
+    else:
+        robot_state = EVADER_STATE_DISCRETIZED
+
+    to_turn_left = robot_state["Opponent Position"] in ["Left", "Close Left"]
+    
+    while robot_state["Front"] == "Close" and robot_state["Opponent Position"] != "Tagged":
+        rospy.loginfo("Trying to rotate")
+        
+        rospy.loginfo("Opponent Position is {}".format(robot_state["Opponent Position"]))
+        if (to_turn_left and (robot_state["Upper Left"] == "Too Close" or robot_state["Lower Left"] == "Too Close"))\
+            or (not to_turn_left and (robot_state["Upper Right"] == "Too Close" or robot_state["Lower Right"] == "Too Close")):
+        # go straight for a bit if the robot could not turn left
+            move_robot(robot_type, 0.2, 0)
+        if to_turn_left:
+        # spin robot to search for opening
+            move_robot(robot_type, 0, 20)
+        else:
+            move_robot(robot_type,0, -20)
+
+        rospy.sleep(time_to_apply_action)
+        
+        # fetch new robot state
+        if robot_type == "pursuer":
+            robot_state = PURSUER_STATE_DISCRETIZED
+        else:
+            robot_state = EVADER_STATE_DISCRETIZED
+    # stop robot once opponent is in front
+    move_robot(robot_type, 0, 0)
+
+def manual_reversal(robot_type, time_to_apply_action=0.33):
+    if robot_type == "pursuer":
+        robot_state = PURSUER_STATE_DISCRETIZED
+    else:
+        robot_state = EVADER_STATE_DISCRETIZED
+
+    translation_speed = -0.1
+    if (robot_state["Upper Left"] == "Too Close" or robot_state["Lower Left"] == "Too Close")\
+        and (robot_state["Upper Right"] == "Too Close" or robot_state["Lower Right"] == "Too Close"):
+        # just reverse backward
+        turn_angle = 0
+    if robot_state["Opponent Position"] in ["Left", "Close Left"]:    
+        # right turn while reversing
+        turn_angle = 60
+    else:
+        # left turn
+        turn_angle = -60
+    
+    rospy.loginfo("Manual Reversal")
+    move_robot(robot_type, translation_speed, turn_angle)
+    rospy.sleep(time_to_apply_action)
+    rospy.loginfo("Slept")
 
 def follow_policy(player_type, q_table, time_to_apply_action = 0.33):
     if player_type == "pursuer":
@@ -648,7 +727,7 @@ def is_stuck(last_few_positions, robot_state):
     # Checking if the location hasn't changed alone is not sufficient 
     # since the robot could be moving very slowly => the algorithm thinks it is stuck
     is_stuck = False
-    if last_few_positions is not None:
+    if len(last_few_positions) > 0 and last_few_positions is not None:
         changes_in_x = 0
         changes_in_y = 0
         for i in range(1,len(last_few_positions)):
@@ -683,8 +762,9 @@ def is_terminal_state(train_type, time_elapsed, episode_time_limit, pursuer_stuc
         is_terminal = True
         terminal_status = "Terminated because pursuer is STUCK"
     # # if we are training both, we end when either gets stuck
-    # elif train_type in ["both", "evader"] and (pursuer_stuck or evader_stuck):
-    #     is_terminal = True
+    elif train_type in ["both", "evader"] and (pursuer_stuck or evader_stuck):
+        is_terminal = True
+        terminal_status = "Terminated because evader is STUCK"
     else:
         is_terminal = False 
     
@@ -722,7 +802,7 @@ def train(train_type = "both", total_episodes = 1000, learning_rate = 0.2, disco
     plt.xlabel("Training episode")
     plt.ylabel("Accumulated rewards")
     plt.xlim(0 , total_episodes)
-    plt.ylim(-100, 100)
+    plt.ylim(-500, 500)
     plt.legend(loc="upper left")
     plt.axhline(y= 0, color = "g", linestyle = "-")
     plt.show(block=False)
@@ -768,8 +848,7 @@ def train(train_type = "both", total_episodes = 1000, learning_rate = 0.2, disco
             spawn_robots()
 
             # every 200 episodes, test the policy learned so far 
-            # including episode 0 => baseline for how robot is doing pre-training
-            if current_episode % 200 == 0:
+            if current_episode % 200 == 0 and current_episode != 0:
                 rospy.loginfo("Testing policy learned so far")
                 test_reward = test(player_to_train, total_episodes = 20, episode_time_limit=episode_time_limit)
                 if test_reward > best_test_score:
@@ -800,12 +879,13 @@ def train(train_type = "both", total_episodes = 1000, learning_rate = 0.2, disco
             while(not is_terminal_state(train_type, time_elapsed, episode_time_limit, PURSUER_STUCK, EVADER_STUCK, PURSUER_STATE_DISCRETIZED["Opponent Position"])):
                 time_elapsed = rospy.Time.now() - start_time
                 
-                # check if robots are stuck, the robot is considered stuck if it has been in the same location for >= 1.5 seconds
-                if len(last_few_pursuer_positions) == int(1.5/time_to_apply_action):
+                # check if robots are stuck, the robot is considered stuck if it has been in the same location for >= 5 seconds
+                # essentially, robot has 5 seconds to rescue itself
+                if len(last_few_pursuer_positions) == int(5/time_to_apply_action):
                     PURSUER_STUCK = is_stuck(last_few_pursuer_positions, robot_state=PURSUER_STATE_DISCRETIZED)    
                     del last_few_pursuer_positions[0]
                     
-                if len(last_few_evader_positions) == int(1.5/time_to_apply_action):
+                if len(last_few_evader_positions) == int(5/time_to_apply_action):
                     EVADER_STUCK = is_stuck(last_few_evader_positions, robot_state= EVADER_STATE_DISCRETIZED)
                     del last_few_evader_positions[0]
 
@@ -854,7 +934,7 @@ def train(train_type = "both", total_episodes = 1000, learning_rate = 0.2, disco
             rospy.loginfo("Num tags = {}, Episodes so far {}".format(num_tagged, current_episode + 1))
 
 
-def test(player_type, total_episodes = 2, episode_time_limit=30, time_to_apply_action = 0.33):
+def test(player_type, total_episodes = 2, episode_time_limit=30, time_to_apply_action = 0.33, allow_rescue_reverse=False):
     current_episode = 0
     current_state = None
     accumulated_reward = 0 
@@ -895,14 +975,22 @@ def test(player_type, total_episodes = 2, episode_time_limit=30, time_to_apply_a
         
         while(not is_terminal_state(train_type=player_type, time_elapsed=time_elapsed, \
                                     episode_time_limit=episode_time_limit,pursuer_stuck= PURSUER_STUCK, evader_stuck= EVADER_STUCK, \
-                                    opponent_rating = current_state["Opponent Position"], verbose=False)):
+                                    opponent_rating = current_state["Opponent Position"], verbose=True)):
             
             # check if robots are stuck, the robot is considered stuck if it has been in the same location for >= 2.50 seconds
             if len(last_few_pursuer_positions) == int(1.5/time_to_apply_action):
                 PURSUER_STUCK = is_stuck(last_few_pursuer_positions, robot_state=PURSUER_STATE_DISCRETIZED)
                 if PURSUER_STUCK:
-                    num_stuck +=1    
-                del last_few_pursuer_positions[0]
+                    num_stuck += 1
+                    if allow_rescue_reverse:
+                        manual_reversal(player_type, time_to_apply_action= 2.0)
+                        rospy.loginfo("Going into manual reorientation")
+                        manual_reorientation(player_type)
+                        last_few_pursuer_positions = []
+                        # get new state after reversal
+                        PURSUER_STUCK = is_stuck(last_few_pursuer_positions, robot_state=PURSUER_STATE_DISCRETIZED)
+                if len(last_few_pursuer_positions) != 0:
+                    del last_few_pursuer_positions[0]
                 
             if len(last_few_evader_positions) == int(1.5/time_to_apply_action):
                 EVADER_STUCK = is_stuck(last_few_evader_positions, robot_state=EVADER_STATE_DISCRETIZED)
@@ -918,6 +1006,7 @@ def test(player_type, total_episodes = 2, episode_time_limit=30, time_to_apply_a
             # follow Q-table to move robot
             follow_policy(player_type=player_type,q_table= q_table_current, time_to_apply_action=time_to_apply_action)
             
+            thread.join()
             # observe rewards of new state
             if player_type == "pursuer":
                 current_state = PURSUER_STATE_DISCRETIZED
@@ -990,22 +1079,22 @@ def main():
                 global Q_TABLE_EVADER
                 Q_TABLE_EVADER = pickle.load(q_table_file)
     
-    train(train_type = "pursuer", starting_epsilon=0.1, max_epsilon=0.95, total_episodes=35000, episode_time_limit=45)
-
-    rospy.loginfo("Result from BEST TRAINING")
-    successfully_loaded = load_q_table(q_table_name="q_table_pursuer_best_training.txt", player_type="pursuer")
-    if successfully_loaded:
-        test("pursuer", total_episodes= 100, episode_time_limit=60)
+    # train(train_type = "pursuer", starting_epsilon=0.1, max_epsilon=0.95, total_episodes=20000, episode_time_limit=45)
+    # replace_speed_in_q_table("q_table_pursuer_best_testing.txt", 0.125, 0.1)
+    # rospy.loginfo("Result from BEST TRAINING")
+    # successfully_loaded = load_q_table(q_table_name="q_table_pursuer_best_training.txt", player_type="pursuer")
+    # if successfully_loaded:
+    #     test("pursuer", total_episodes= 100, episode_time_limit=60)
 
     rospy.loginfo("Result from BEST TESTING")
-    successfully_loaded = load_q_table(q_table_name="q_table_pursuer_best_testing.txt", player_type="pursuer")
+    successfully_loaded = load_q_table(q_table_name="q_table_pursuer_best_testing_35k_50%.txt", player_type="pursuer")
     if successfully_loaded:
-        test("pursuer", total_episodes= 100, episode_time_limit=60)
+        test("pursuer", total_episodes= 100, episode_time_limit=90, allow_rescue_reverse=True)
     
-    rospy.loginfo("Result from NORMAL")
-    successfully_loaded = load_q_table(q_table_name="q_table_pursuer.txt", player_type="pursuer")
-    if successfully_loaded:
-        test("pursuer", total_episodes= 100, episode_time_limit=60)
+    # rospy.loginfo("Result from NORMAL")
+    # successfully_loaded = load_q_table(q_table_name="q_table_pursuer.txt", player_type="pursuer")
+    # if successfully_loaded:
+    #     test("pursuer", total_episodes= 100, episode_time_limit=60)
     
     # rospy.spin()
 
