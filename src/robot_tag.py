@@ -662,9 +662,9 @@ def manual_reorientation(robot_type, time_to_apply_action=0.33):
     to_turn_left = robot_state["Opponent Position"] in ["Left", "Close Left"]
     
     while robot_state["Front"] == "Close" and robot_state["Opponent Position"] != "Tagged":
-        rospy.loginfo("Trying to rotate")
+        # rospy.loginfo("Trying to rotate")
         
-        rospy.loginfo("Opponent Position is {}".format(robot_state["Opponent Position"]))
+        # rospy.loginfo("Opponent Position is {}".format(robot_state["Opponent Position"]))
         if (to_turn_left and (robot_state["Upper Left"] == "Too Close" or robot_state["Lower Left"] == "Too Close"))\
             or (not to_turn_left and (robot_state["Upper Right"] == "Too Close" or robot_state["Lower Right"] == "Too Close")):
         # go straight for a bit if the robot could not turn left
@@ -703,10 +703,10 @@ def manual_reversal(robot_type, time_to_apply_action=0.33):
         # left turn
         turn_angle = -60
     
-    rospy.loginfo("Manual Reversal")
+    # rospy.loginfo("Manual Reversal")
     move_robot(robot_type, translation_speed, turn_angle)
     rospy.sleep(time_to_apply_action)
-    rospy.loginfo("Slept")
+    # rospy.loginfo("Slept")
 
 def follow_policy(player_type, q_table, time_to_apply_action = 0.33):
     if player_type == "pursuer":
@@ -802,7 +802,7 @@ def train(train_type = "both", total_episodes = 1000, learning_rate = 0.2, disco
     plt.xlabel("Training episode")
     plt.ylabel("Accumulated rewards")
     plt.xlim(0 , total_episodes)
-    plt.ylim(-500, 500)
+    plt.ylim(-100, 100)
     plt.legend(loc="upper left")
     plt.axhline(y= 0, color = "g", linestyle = "-")
     plt.show(block=False)
@@ -848,7 +848,8 @@ def train(train_type = "both", total_episodes = 1000, learning_rate = 0.2, disco
             spawn_robots()
 
             # every 200 episodes, test the policy learned so far 
-            if current_episode % 200 == 0 and current_episode != 0:
+            # if current_episode % 200 == 0 and current_episode != 0:
+            if current_episode % 200 == 0:
                 rospy.loginfo("Testing policy learned so far")
                 test_reward = test(player_to_train, total_episodes = 20, episode_time_limit=episode_time_limit)
                 if test_reward > best_test_score:
@@ -934,7 +935,7 @@ def train(train_type = "both", total_episodes = 1000, learning_rate = 0.2, disco
             rospy.loginfo("Num tags = {}, Episodes so far {}".format(num_tagged, current_episode + 1))
 
 
-def test(player_type, total_episodes = 2, episode_time_limit=30, time_to_apply_action = 0.33, allow_rescue_reverse=False):
+def test(player_type, total_episodes = 2, episode_time_limit=30, time_to_apply_action = 0.33, allow_rescue_reverse= False):
     current_episode = 0
     current_state = None
     accumulated_reward = 0 
@@ -984,7 +985,7 @@ def test(player_type, total_episodes = 2, episode_time_limit=30, time_to_apply_a
                     num_stuck += 1
                     if allow_rescue_reverse:
                         manual_reversal(player_type, time_to_apply_action= 2.0)
-                        rospy.loginfo("Going into manual reorientation")
+                        # rospy.loginfo("Going into manual reorientation")
                         manual_reorientation(player_type)
                         last_few_pursuer_positions = []
                         # get new state after reversal
@@ -1079,7 +1080,7 @@ def main():
                 global Q_TABLE_EVADER
                 Q_TABLE_EVADER = pickle.load(q_table_file)
     
-    # train(train_type = "pursuer", starting_epsilon=0.1, max_epsilon=0.95, total_episodes=20000, episode_time_limit=45)
+    # train(train_type = "pursuer", starting_epsilon=0.2, max_epsilon=0.95, total_episodes=10000, episode_time_limit=45)
     # replace_speed_in_q_table("q_table_pursuer_best_testing.txt", 0.125, 0.1)
     # rospy.loginfo("Result from BEST TRAINING")
     # successfully_loaded = load_q_table(q_table_name="q_table_pursuer_best_training.txt", player_type="pursuer")
@@ -1087,7 +1088,7 @@ def main():
     #     test("pursuer", total_episodes= 100, episode_time_limit=60)
 
     rospy.loginfo("Result from BEST TESTING")
-    successfully_loaded = load_q_table(q_table_name="q_table_pursuer_best_testing_35k_50%.txt", player_type="pursuer")
+    successfully_loaded = load_q_table(q_table_name="q_table_pursuer_best_training.txt", player_type="pursuer")
     if successfully_loaded:
         test("pursuer", total_episodes= 100, episode_time_limit=90, allow_rescue_reverse=True)
     
