@@ -158,6 +158,10 @@ def reward_function(player_type, state, verbose = True):
             reward = 0
     # REWARD FUNCTION FOR EVADER
     elif player_type == "evader":
+
+        TRUE_DISTANCE_BETWEEN_PLAYERS = (DISTANCE_BETWEEN_PLAYERS - WAFFLE_RADIUS)
+        TRUE_SAFE_DISTANCE_FROM_OBSTACLE = (BURGER_RADIUS + SAFE_DISTANCE_FROM_OBSTACLE)
+
         if EVADER_STUCK:
             rospy.loginfo("STUCK!")
             state_description = "STUCK!"
@@ -615,6 +619,7 @@ def q_learning_td(player_type, q_table, learning_rate, epsilon, discount_factor,
     # get action A from S using policy
     chosen_action = get_policy(q_table, current_state, verbose = False, epsilon= epsilon)
     translation_speed, turn_action = chosen_action
+    rospy.loginfo("Chosen action {}, {}".format(translation_speed, turn_action))
     # take action A and move player, this would change the player's state
     # rospy.loginfo("Chosen action {}".format(action))
     move_robot(player_type, translation_speed, turn_action)
@@ -772,10 +777,11 @@ def is_terminal_state(train_type, time_elapsed, episode_time_limit, pursuer_stuc
     elif train_type == "pursuer" and pursuer_stuck:
         is_terminal = True
         terminal_status = "Terminated because pursuer is STUCK"
-    # # if we are training both, we end when either gets stuck
-    elif train_type in ["both", "evader"] and (pursuer_stuck or evader_stuck):
+    # when training the evader, terminate when the evader gets stuck
+    elif train_type == "evader" and evader_stuck:
         is_terminal = True
         terminal_status = "Terminated because evader is STUCK"
+    # TODO: Add condition for "both" training type
     else:
         is_terminal = False 
     
@@ -813,7 +819,7 @@ def train(train_type = "both", total_episodes = 1000, learning_rate = 0.2, disco
     plt.xlabel("Training episode")
     plt.ylabel("Accumulated rewards")
     plt.xlim(0 , total_episodes)
-    plt.ylim(-500, 500)
+    plt.ylim(-100, 100)
     plt.legend(loc="upper left")
     plt.axhline(y= 0, color = "g", linestyle = "-")
     plt.show(block=False)
@@ -889,7 +895,6 @@ def train(train_type = "both", total_episodes = 1000, learning_rate = 0.2, disco
             is_terminal = False
             while(not is_terminal_state(train_type, time_elapsed, episode_time_limit, PURSUER_STUCK, EVADER_STUCK, PURSUER_STATE_DISCRETIZED["Opponent Position"])):
                 time_elapsed = rospy.Time.now() - start_time
-                
                 # check if robots are stuck, the robot is considered stuck if it has been in the same location for >= 1.5 seconds
                 if len(last_few_pursuer_positions) == int(1.5/time_to_apply_action):
                     PURSUER_STUCK = is_stuck(last_few_pursuer_positions, robot_state=PURSUER_STATE_DISCRETIZED)
@@ -908,7 +913,7 @@ def train(train_type = "both", total_episodes = 1000, learning_rate = 0.2, disco
                 if len(last_few_evader_positions) == int(1.5/time_to_apply_action):
                     EVADER_STUCK = is_stuck(last_few_evader_positions, robot_state=EVADER_STATE_DISCRETIZED)
                     if EVADER_STUCK:
-                        if train_type == "evader": 
+                        if train_type == "pursuer": 
                             # if we are training the pursuer, the evader could manually reverse and chases it
                             manual_reversal("evader", time_to_apply_action= 2.0)
                             # rospy.loginfo("Going into manual reorientation")
@@ -1109,17 +1114,17 @@ def main():
                 global Q_TABLE_EVADER
                 Q_TABLE_EVADER = pickle.load(q_table_file)
     
-    # train(train_type = "pursuer", starting_epsilon=0.1, max_epsilon=0.95, total_episodes=20000, episode_time_limit=45)
+    train(train_type = "evader", starting_epsilon=0.2, max_epsilon=0.95, total_episodes=6000, episode_time_limit=30)
     # replace_speed_in_q_table("q_table_pursuer_best_testing.txt", 0.125, 0.1)
     # rospy.loginfo("Result from BEST TRAINING")
     # successfully_loaded = load_q_table(q_table_name="q_table_pursuer_best_training.txt", player_type="pursuer")
     # if successfully_loaded:
     #     test("pursuer", total_episodes= 100, episode_time_limit=60)
 
-    rospy.loginfo("Result from BEST TESTING")
-    successfully_loaded = load_q_table(q_table_name="q_table_pursuer_best_testing_35k_50%.txt", player_type="pursuer")
-    if successfully_loaded:
-        test("pursuer", total_episodes= 100, episode_time_limit=90, allow_rescue_reverse=True)
+    # rospy.loginfo("Result from BEST TESTING")
+    # successfully_loaded = load_q_table(q_table_name="q_table_pursuer_best_testing_35k_50%.txt", player_type="pursuer")
+    # if successfully_loaded:
+    #     test("pursuer", total_episodes= 100, episode_time_limit=90, allow_rescue_reverse=True)
     
     # rospy.loginfo("Result from NORMAL")
     # successfully_loaded = load_q_table(q_table_name="q_table_pursuer.txt", player_type="pursuer")
