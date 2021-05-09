@@ -4,7 +4,7 @@ cd src;
 chmod +x robot_tag.py;
 cd ..;
 export TURTLEBOT3_PURSUER="waffle";
-export TURTLEBOT3_EVADER="burger";
+export TURTLEBOT3_EVADER="waffle_pi";
 source ../../devel/setup.bash;
 gnome-terminal -- roslaunch robot_tag robottag.launch;
 sleep 2;

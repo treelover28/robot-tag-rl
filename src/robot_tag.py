@@ -75,8 +75,8 @@ Q_TABLE_PURSUER = None
 Q_TABLE_EVADER = None 
 
 # WIDTH OF TURTLEBOTS:
-WAFFLE_RADIUS = 1.0/8 # 4 Waffles one unit width wise
-BURGER_RADIUS = 1.0/18 # 2 Burgers is roughly 1 waffle width wise
+PURSUER_RADIUS = 1.0/8 # 4 Waffles one unit width wise
+EVADER_RADIUS = 1.0/8 # 2 Burgers is roughly 1 waffle width wise
 
 def sigmoid(x):
     return 1/(1+np.exp(-1*x))
@@ -92,8 +92,8 @@ def reward_function(player_type, state, verbose = True):
         # the distance is between player calculated from the positions is the distance from one's robot's center to another robot's center
         # while distance gathered from the pursuer's LIDAR is from the pursuer's center to the evader's nearest SIDE 
         # thus, we need to adjust this DISTANCE_BETWEEN_PLAYERS by the evader's radius to better compare the two 
-        TRUE_DISTANCE_BETWEEN_PLAYERS = (DISTANCE_BETWEEN_PLAYERS - BURGER_RADIUS)
-        TRUE_SAFE_DISTANCE_FROM_OBSTACLE = (WAFFLE_RADIUS + SAFE_DISTANCE_FROM_OBSTACLE)
+        TRUE_DISTANCE_BETWEEN_PLAYERS = (DISTANCE_BETWEEN_PLAYERS - EVADER_RADIUS)
+        TRUE_SAFE_DISTANCE_FROM_OBSTACLE = (PURSUER_RADIUS + SAFE_DISTANCE_FROM_OBSTACLE)
 
         # rospy.loginfo("PURSUER_MIN_DISTANCE: {}\nTRUE_DISTANCE_BETWEEN_PLAYERS: {}\nTRUE_SAFE_DISTANCE_FROM_OBSTACLE: {}".format(PURSUER_MIN_DISTANCE_TO_OBSTACLE, TRUE_DISTANCE_BETWEEN_PLAYERS ,TRUE_SAFE_DISTANCE_FROM_OBSTACLE))
         if PURSUER_STUCK:
@@ -196,8 +196,8 @@ def reward_function(player_type, state, verbose = True):
     # REWARD FUNCTION FOR EVADER -----------------------------------------------------------------------------------------------------------------------------------
     elif player_type == "evader":
 
-        TRUE_DISTANCE_BETWEEN_PLAYERS = (DISTANCE_BETWEEN_PLAYERS - WAFFLE_RADIUS)
-        TRUE_SAFE_DISTANCE_FROM_OBSTACLE = (BURGER_RADIUS + SAFE_DISTANCE_FROM_OBSTACLE)
+        TRUE_DISTANCE_BETWEEN_PLAYERS = (DISTANCE_BETWEEN_PLAYERS - PURSUER_RADIUS)
+        TRUE_SAFE_DISTANCE_FROM_OBSTACLE = (EVADER_RADIUS + SAFE_DISTANCE_FROM_OBSTACLE)
 
         if EVADER_STUCK:
             # rospy.loginfo("STUCK!")
@@ -285,7 +285,8 @@ def reward_function(player_type, state, verbose = True):
             reward = 0
     if verbose:
         # rospy.loginfo("DISTANCE BTW PLAYER: {}, PURSUER_MIN_DIST_OBSTACLE = {}, TRUE_SAFE_DISTANCE_FROM_OBSTACLE = {}".format(TRUE_DISTANCE_BETWEEN_PLAYERS, PURSUER_MIN_DISTANCE_TO_OBSTACLE, TRUE_SAFE_DISTANCE_FROM_OBSTACLE))
-        rospy.loginfo("{}'s state is {}".format(player_type, state_description))
+        rospy.loginfo("{}'s state is {}".format(player_type, state))
+        rospy.loginfo("{}'s state's is {}".format(player_type, state_description))
         rospy.loginfo("{}'s reward is {}".format(player_type, reward))
     
     return reward 
@@ -293,9 +294,9 @@ def reward_function(player_type, state, verbose = True):
 
 def get_opponent_position_rating(player_A, player_B):
     if player_A == PURSUER_POSITION:
-        TRUE_SAFE_DISTANCE_FROM_OBSTACLE = WAFFLE_RADIUS + SAFE_DISTANCE_FROM_OBSTACLE
+        TRUE_SAFE_DISTANCE_FROM_OBSTACLE = PURSUER_RADIUS + SAFE_DISTANCE_FROM_OBSTACLE
     else:
-        TRUE_SAFE_DISTANCE_FROM_OBSTACLE = BURGER_RADIUS + SAFE_DISTANCE_FROM_OBSTACLE
+        TRUE_SAFE_DISTANCE_FROM_OBSTACLE = EVADER_RADIUS + SAFE_DISTANCE_FROM_OBSTACLE
     
     
     player_A_position = np.array(player_A[:3])
@@ -351,10 +352,9 @@ def get_opponent_position_rating(player_A, player_B):
 def get_distance_rating(direction, distance, player_type):
 
     if player_type == "pursuer":
-        TRUE_SAFE_DISTANCE_FROM_OBSTACLE = WAFFLE_RADIUS + SAFE_DISTANCE_FROM_OBSTACLE
+        TRUE_SAFE_DISTANCE_FROM_OBSTACLE = PURSUER_RADIUS + SAFE_DISTANCE_FROM_OBSTACLE
     else:
-        TRUE_SAFE_DISTANCE_FROM_OBSTACLE = BURGER_RADIUS + SAFE_DISTANCE_FROM_OBSTACLE
-    
+        TRUE_SAFE_DISTANCE_FROM_OBSTACLE = EVADER_RADIUS + SAFE_DISTANCE_FROM_OBSTACLE
     
     if direction == "Front":
         # if player_type == "evader":
@@ -377,6 +377,7 @@ def get_distance_rating(direction, distance, player_type):
             rating = "OK"
         else:
             rating = "Far"
+    
     return rating
 
 
@@ -859,7 +860,8 @@ def is_stuck(last_few_positions, robot_state):
         #        robot_state["Lower Right"] == "Too Close" or \
         #        robot_state["Front"] == "Close")
         is_near_obstacle = robot_state["Front"] == "Close" 
-        
+
+        # rospy.loginfo("is in same place {}, is near obstacle {}".format(is_in_same_place, is_near_obstacle))
         # the robot is consider stuck of it is near an obstacle and hasn't changed position in a while
         is_stuck = is_near_obstacle and is_in_same_place
     return is_stuck
@@ -1171,8 +1173,8 @@ def train(train_type = "pursuer", total_episodes = 1000, learning_rate = 0.2, di
                     elif turn_action in [-60, -40, -20]:
                         num_times_go_right_opponent_is_right += 1
                     else:
-                        num_times_go_front_opponent_is_right += 1 
-                elif "Front" in current_state["Opponent Position"]:  
+                        num_times_go_front_opponent_is_right += 1
+                elif "Front" in current_state["Opponent Position"]:
                     if turn_action in [60, 40, 20]:
                         num_times_go_left_opponent_is_front += 1
                     elif turn_action in [-60, -40, -20]:
@@ -1458,10 +1460,12 @@ def main():
             else:
                 global Q_TABLE_EVADER
                 Q_TABLE_EVADER = pickle.load(q_table_file)
-    
+
+
+    load_q_table(q_table_name="q_table_pursuer_best_training.txt", player_type="pursuer")
     train(train_type = "evader", starting_epsilon=0.4, max_epsilon=0.95, total_episodes=30000, episode_time_limit=45, time_to_apply_action=0.5, evader_random_walk=False)
     
-    # # replace_speed_in_q_table("q_table_pursuer_best_testing.txt", 0.125, 0.1)
+    # # # replace_speed_in_q_table("q_table_pursuer_best_testing.txt", 0.125, 0.1)
     rospy.loginfo("Result from BEST TRAINING")
     successfully_loaded = load_q_table(q_table_name="q_table_evader_best_training.txt", player_type="evader")
     if successfully_loaded:
