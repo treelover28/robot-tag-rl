@@ -1541,7 +1541,7 @@ def main():
 
 
     # load_q_table(q_table_name="q_table_pursuer_best_training.txt", player_type="pursuer")
-    train(train_type = "evader", starting_epsilon=0.4, max_epsilon=0.95, total_episodes=30000, episode_time_limit=45, time_to_apply_action=0.5, evader_random_walk=False)
+    train(train_type = "evader", starting_epsilon=0.4, max_epsilon=0.95, total_episodes=20000, episode_time_limit=45, time_to_apply_action=0.5, evader_random_walk=False)
     
     # # # replace_speed_in_q_table("q_table_pursuer_best_testing.txt", 0.125, 0.1)
     rospy.loginfo("Result from BEST TRAINING")
