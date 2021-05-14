@@ -88,7 +88,7 @@
     </scene>
     <gui fullscreen='0'>
       <camera name='user_camera'>
-        <pose frame=''>-2.41385 0.080691 13.4897 -0 1.3458 0.043997</pose>
+        <pose frame=''>-0.615079 2.90623 18.7958 -2e-06 1.5698 -0.093516</pose>
         <view_controller>orbit</view_controller>
         <projection_type>perspective</projection_type>
       </camera>
@@ -108,10 +108,10 @@
       <heading_deg>0</heading_deg>
     </spherical_coordinates>
     <state world_name='default'>
-      <sim_time>20491 846000000</sim_time>
-      <real_time>11119 916770877</real_time>
-      <wall_time>1618712143 191884485</wall_time>
-      <iterations>13332341</iterations>
+      <sim_time>20560 503000000</sim_time>
+      <real_time>7 857918628</real_time>
+      <wall_time>1620779858 647732933</wall_time>
+      <iterations>68657</iterations>
       <model name='ground_plane'>
         <pose frame=''>0 0 0 0 -0 0</pose>
         <scale>1 1 1</scale>
@@ -155,30 +155,6 @@
             <izz>1</izz>
           </inertia>
         </inertial>
-        <visual name='left_hand'>
-          <pose frame=''>1.8 2.7 0 0 -0 0</pose>
-          <geometry>
-            <mesh>
-              <uri>model://turtlebot3_world/meshes/hexagon.dae</uri>
-              <scale>0.55 0.55 0.55</scale>
-            </mesh>
-          </geometry>
-          <material>
-            <script>
-              <uri>file://media/materials/scripts/gazebo.material</uri>
-              <name>Gazebo/Green</name>
-            </script>
-            <shader type='vertex'>
-              <normal_map>__default__</normal_map>
-            </shader>
-            <ambient>0 1 0 1</ambient>
-            <diffuse>0 1 0 1</diffuse>
-            <specular>0.1 0.1 0.1 1</specular>
-            <emissive>0 0 0 1</emissive>
-          </material>
-          <transparency>0</transparency>
-          <cast_shadows>1</cast_shadows>
-        </visual>
         <visual name='two_two'>
           <pose frame=''>0 0 0.25 0 -0 0</pose>
           <geometry>
@@ -198,54 +174,6 @@
             <ambient>1 1 1 1</ambient>
             <diffuse>1 1 1 1</diffuse>
             <specular>0 0 0 1</specular>
-            <emissive>0 0 0 1</emissive>
-          </material>
-          <transparency>0</transparency>
-          <cast_shadows>1</cast_shadows>
-        </visual>
-        <visual name='right_hand'>
-          <pose frame=''>1.8 -2.7 0 0 -0 0</pose>
-          <geometry>
-            <mesh>
-              <uri>model://turtlebot3_world/meshes/hexagon.dae</uri>
-              <scale>0.55 0.55 0.55</scale>
-            </mesh>
-          </geometry>
-          <material>
-            <script>
-              <uri>file://media/materials/scripts/gazebo.material</uri>
-              <name>Gazebo/Green</name>
-            </script>
-            <shader type='vertex'>
-              <normal_map>__default__</normal_map>
-            </shader>
-            <ambient>0 1 0 1</ambient>
-            <diffuse>0 1 0 1</diffuse>
-            <specular>0.1 0.1 0.1 1</specular>
-            <emissive>0 0 0 1</emissive>
-          </material>
-          <transparency>0</transparency>
-          <cast_shadows>1</cast_shadows>
-        </visual>
-        <visual name='right_foot'>
-          <pose frame=''>-1.8 -2.7 0 0 -0 0</pose>
-          <geometry>
-            <mesh>
-              <uri>model://turtlebot3_world/meshes/hexagon.dae</uri>
-              <scale>0.55 0.55 0.55</scale>
-            </mesh>
-          </geometry>
-          <material>
-            <script>
-              <uri>file://media/materials/scripts/gazebo.material</uri>
-              <name>Gazebo/Green</name>
-            </script>
-            <shader type='vertex'>
-              <normal_map>__default__</normal_map>
-            </shader>
-            <ambient>0 1 0 1</ambient>
-            <diffuse>0 1 0 1</diffuse>
-            <specular>0.1 0.1 0.1 1</specular>
             <emissive>0 0 0 1</emissive>
           </material>
           <transparency>0</transparency>
@@ -371,95 +299,15 @@
           <transparency>0</transparency>
           <cast_shadows>1</cast_shadows>
         </visual>
-        <visual name='left_foot'>
-          <pose frame=''>-1.8 2.7 0 0 -0 0</pose>
-          <geometry>
-            <mesh>
-              <uri>model://turtlebot3_world/meshes/hexagon.dae</uri>
-              <scale>0.55 0.55 0.55</scale>
-            </mesh>
-          </geometry>
-          <material>
-            <script>
-              <uri>file://media/materials/scripts/gazebo.material</uri>
-              <name>Gazebo/Green</name>
-            </script>
-            <shader type='vertex'>
-              <normal_map>__default__</normal_map>
-            </shader>
-            <ambient>0 1 0 1</ambient>
-            <diffuse>0 1 0 1</diffuse>
-            <specular>0.1 0.1 0.1 1</specular>
-            <emissive>0 0 0 1</emissive>
-          </material>
-          <transparency>0</transparency>
-          <cast_shadows>1</cast_shadows>
-        </visual>
-        <collision name='left_hand'>
+        <collision name='three_three'>
           <laser_retro>0</laser_retro>
           <max_contacts>10</max_contacts>
-          <pose frame=''>1.8 2.7 0 0 -0 0</pose>
+          <pose frame=''>1.1 1.1 0.25 0 -0 0</pose>
           <geometry>
-            <mesh>
-              <uri>/opt/ros/melodic/share/turtlebot3_gazebo/models/turtlebot3_world/meshes/hexagon.dae</uri>
-              <scale>0.55 0.55 0.55</scale>
-            </mesh>
-          </geometry>
-          <surface>
-            <friction>
-              <ode>
-                <mu>1</mu>
-                <mu2>1</mu2>
-                <fdir1>0 0 0</fdir1>
-                <slip1>0</slip1>
-                <slip2>0</slip2>
-              </ode>
-              <torsional>
-                <coefficient>1</coefficient>
-                <patch_radius>0</patch_radius>
-                <surface_radius>0</surface_radius>
-                <use_patch_radius>1</use_patch_radius>
-                <ode>
-                  <slip>0</slip>
-                </ode>
-              </torsional>
-            </friction>
-            <bounce>
-              <restitution_coefficient>0</restitution_coefficient>
-              <threshold>1e+06</threshold>
-            </bounce>
-            <contact>
-              <collide_without_contact>0</collide_without_contact>
-              <collide_without_contact_bitmask>1</collide_without_contact_bitmask>
-              <collide_bitmask>1</collide_bitmask>
-              <ode>
-                <soft_cfm>0</soft_cfm>
-                <soft_erp>0.2</soft_erp>
-                <kp>1e+13</kp>
-                <kd>1</kd>
-                <max_vel>0.01</max_vel>
-                <min_depth>0</min_depth>
-              </ode>
-              <bullet>
-                <split_impulse>1</split_impulse>
-                <split_impulse_penetration_threshold>-0.01</split_impulse_penetration_threshold>
-                <soft_cfm>0</soft_cfm>
-                <soft_erp>0.2</soft_erp>
-                <kp>1e+13</kp>
-                <kd>1</kd>
-              </bullet>
-            </contact>
-          </surface>
-        </collision>
-        <collision name='left_foot'>
-          <laser_retro>0</laser_retro>
-          <max_contacts>10</max_contacts>
-          <pose frame=''>-1.8 2.7 0 0 -0 0</pose>
-          <geometry>
-            <mesh>
-              <uri>/opt/ros/melodic/share/turtlebot3_gazebo/models/turtlebot3_world/meshes/hexagon.dae</uri>
-              <scale>0.55 0.55 0.55</scale>
-            </mesh>
+            <cylinder>
+              <radius>0.15</radius>
+              <length>0.5</length>
+            </cylinder>
           </geometry>
           <surface>
             <friction>
@@ -619,62 +467,6 @@
             </contact>
           </surface>
         </collision>
-        <collision name='three_three'>
-          <laser_retro>0</laser_retro>
-          <max_contacts>10</max_contacts>
-          <pose frame=''>1.1 1.1 0.25 0 -0 0</pose>
-          <geometry>
-            <cylinder>
-              <radius>0.15</radius>
-              <length>0.5</length>
-            </cylinder>
-          </geometry>
-          <surface>
-            <friction>
-              <ode>
-                <mu>1</mu>
-                <mu2>1</mu2>
-                <fdir1>0 0 0</fdir1>
-                <slip1>0</slip1>
-                <slip2>0</slip2>
-              </ode>
-              <torsional>
-                <coefficient>1</coefficient>
-                <patch_radius>0</patch_radius>
-                <surface_radius>0</surface_radius>
-                <use_patch_radius>1</use_patch_radius>
-                <ode>
-                  <slip>0</slip>
-                </ode>
-              </torsional>
-            </friction>
-            <bounce>
-              <restitution_coefficient>0</restitution_coefficient>
-              <threshold>1e+06</threshold>
-            </bounce>
-            <contact>
-              <collide_without_contact>0</collide_without_contact>
-              <collide_without_contact_bitmask>1</collide_without_contact_bitmask>
-              <collide_bitmask>1</collide_bitmask>
-              <ode>
-                <soft_cfm>0</soft_cfm>
-                <soft_erp>0.2</soft_erp>
-                <kp>1e+13</kp>
-                <kd>1</kd>
-                <max_vel>0.01</max_vel>
-                <min_depth>0</min_depth>
-              </ode>
-              <bullet>
-                <split_impulse>1</split_impulse>
-                <split_impulse_penetration_threshold>-0.01</split_impulse_penetration_threshold>
-                <soft_cfm>0</soft_cfm>
-                <soft_erp>0.2</soft_erp>
-                <kp>1e+13</kp>
-                <kd>1</kd>
-              </bullet>
-            </contact>
-          </surface>
-        </collision>
         <collision name='two_two'>
           <laser_retro>0</laser_retro>
           <max_contacts>10</max_contacts>
@@ -731,62 +523,6 @@
             </contact>
           </surface>
         </collision>
-        <collision name='right_hand'>
-          <laser_retro>0</laser_retro>
-          <max_contacts>10</max_contacts>
-          <pose frame=''>1.8 -2.7 0 0 -0 0</pose>
-          <geometry>
-            <mesh>
-              <uri>/opt/ros/melodic/share/turtlebot3_gazebo/models/turtlebot3_world/meshes/hexagon.dae</uri>
-              <scale>0.55 0.55 0.55</scale>
-            </mesh>
-          </geometry>
-          <surface>
-            <friction>
-              <ode>
-                <mu>1</mu>
-                <mu2>1</mu2>
-                <fdir1>0 0 0</fdir1>
-                <slip1>0</slip1>
-                <slip2>0</slip2>
-              </ode>
-              <torsional>
-                <coefficient>1</coefficient>
-                <patch_radius>0</patch_radius>
-                <surface_radius>0</surface_radius>
-                <use_patch_radius>1</use_patch_radius>
-                <ode>
-                  <slip>0</slip>
-                </ode>
-              </torsional>
-            </friction>
-            <bounce>
-              <restitution_coefficient>0</restitution_coefficient>
-              <threshold>1e+06</threshold>
-            </bounce>
-            <contact>
-              <collide_without_contact>0</collide_without_contact>
-              <collide_without_contact_bitmask>1</collide_without_contact_bitmask>
-              <collide_bitmask>1</collide_bitmask>
-              <ode>
-                <soft_cfm>0</soft_cfm>
-                <soft_erp>0.2</soft_erp>
-                <kp>1e+13</kp>
-                <kd>1</kd>
-                <max_vel>0.01</max_vel>
-                <min_depth>0</min_depth>
-              </ode>
-              <bullet>
-                <split_impulse>1</split_impulse>
-                <split_impulse_penetration_threshold>-0.01</split_impulse_penetration_threshold>
-                <soft_cfm>0</soft_cfm>
-                <soft_erp>0.2</soft_erp>
-                <kp>1e+13</kp>
-                <kd>1</kd>
-              </bullet>
-            </contact>
-          </surface>
-        </collision>
         <collision name='one_one'>
           <laser_retro>0</laser_retro>
           <max_contacts>10</max_contacts>
@@ -796,62 +532,6 @@
               <radius>0.15</radius>
               <length>0.5</length>
             </cylinder>
-          </geometry>
-          <surface>
-            <friction>
-              <ode>
-                <mu>1</mu>
-                <mu2>1</mu2>
-                <fdir1>0 0 0</fdir1>
-                <slip1>0</slip1>
-                <slip2>0</slip2>
-              </ode>
-              <torsional>
-                <coefficient>1</coefficient>
-                <patch_radius>0</patch_radius>
-                <surface_radius>0</surface_radius>
-                <use_patch_radius>1</use_patch_radius>
-                <ode>
-                  <slip>0</slip>
-                </ode>
-              </torsional>
-            </friction>
-            <bounce>
-              <restitution_coefficient>0</restitution_coefficient>
-              <threshold>1e+06</threshold>
-            </bounce>
-            <contact>
-              <collide_without_contact>0</collide_without_contact>
-              <collide_without_contact_bitmask>1</collide_without_contact_bitmask>
-              <collide_bitmask>1</collide_bitmask>
-              <ode>
-                <soft_cfm>0</soft_cfm>
-                <soft_erp>0.2</soft_erp>
-                <kp>1e+13</kp>
-                <kd>1</kd>
-                <max_vel>0.01</max_vel>
-                <min_depth>0</min_depth>
-              </ode>
-              <bullet>
-                <split_impulse>1</split_impulse>
-                <split_impulse_penetration_threshold>-0.01</split_impulse_penetration_threshold>
-                <soft_cfm>0</soft_cfm>
-                <soft_erp>0.2</soft_erp>
-                <kp>1e+13</kp>
-                <kd>1</kd>
-              </bullet>
-            </contact>
-          </surface>
-        </collision>
-        <collision name='right_foot'>
-          <laser_retro>0</laser_retro>
-          <max_contacts>10</max_contacts>
-          <pose frame=''>-1.8 -2.7 0 0 -0 0</pose>
-          <geometry>
-            <mesh>
-              <uri>/opt/ros/melodic/share/turtlebot3_gazebo/models/turtlebot3_world/meshes/hexagon.dae</uri>
-              <scale>0.55 0.55 0.55</scale>
-            </mesh>
           </geometry>
           <surface>
             <friction>
