@@ -1193,8 +1193,10 @@ def train(train_type = "pursuer", total_episodes = 1000, learning_rate = 0.2, di
                 
 
                 if rescue_thread.is_alive() and not evader_random_walk:
-                    # when waiting for the other robot to rescue itself, stop current robot
-                    move_robot(player, 0,0)
+                    # when waiting for the other robot to rescue itself, the current robot continue learning
+                    # move_robot(player, 0,0)
+                    q_learning_td(player, q_table_player, learning_rate = learning_rate, discount_factor = discount_factor, epsilon = epsilon,\
+                    time_to_apply_action = time_to_apply_action)
                     rescue_thread.join()
                     rescue_stop_time = rospy.Time.now()
                     time_spent_on_manual_rescue += (rescue_stop_time - rescue_start_time)
@@ -1389,6 +1391,7 @@ def test(player, total_episodes = 2, episode_time_limit=30, time_to_apply_action
         
         global GAME_TIMEOUT
         GAME_TIMEOUT = False
+        
         # keep track of total time spent on rescuing the robot
         # rescue time will not count toward game time
         time_spent_on_manual_rescue = rospy.Duration(secs=0)
@@ -1451,16 +1454,17 @@ def test(player, total_episodes = 2, episode_time_limit=30, time_to_apply_action
 
             # wait for the rescue threads to join
             if pursuer_rescue_thread.is_alive():
-                # while waiting for pursuer to unstuck itself, stop moving the evader
-                move_robot("evader", 0,0)
+                # while waiting for pursuer to unstuck itself, continue moving the evader
+                follow_policy(player_type= "evader", q_table= Q_TABLE_EVADER, time_to_apply_action=time_to_apply_action)
+                # move_robot("evader", 0,0)
                 pursuer_rescue_thread.join()
                 pursuer_rescue_stop_time = rospy.Time.now()
                 time_spent_on_manual_rescue += (pursuer_rescue_stop_time - pursuer_rescue_start_time)
             
 
             if evader_rescue_thread.is_alive():
-               # while waiting for evader to unstuck itself, stop moving the pursuer
-                move_robot("pursuer", 0,0)
+               # while waiting for evader to unstuck itself, continue moving the pursuer
+                follow_policy(player_type= "pursuer", q_table= Q_TABLE_PURSUER, time_to_apply_action=time_to_apply_action)
                 evader_rescue_thread.join()
                 evader_rescue_stop_time = rospy.Time.now()
                 time_spent_on_manual_rescue += (evader_rescue_stop_time - evader_rescue_start_time)
@@ -1581,14 +1585,14 @@ def main():
                 Q_TABLE_EVADER = pickle.load(q_table_file)
 
 
-    load_q_table(q_table_name="q_table_pursuer_best_training.txt", player_type="pursuer")
-    # train(train_type = "evader", starting_epsilon=0.4, max_epsilon=0.95, total_episodes=25000, episode_time_limit=35, time_to_apply_action=0.5, evader_random_walk=False, do_initial_test=False)
+    load_q_table(q_table_name="q_table_evader_best_training.txt", player_type="evader")
+    train(train_type = "pursuer", starting_epsilon=0.4, max_epsilon=0.95, total_episodes=25000, episode_time_limit=45, time_to_apply_action=0.5, evader_random_walk=False, do_initial_test=False)
     
     # # # replace_speed_in_q_table("q_table_pursuer_best_testing.txt", 0.125, 0.1)
-    rospy.loginfo("Result from BEST TRAINING")
-    successfully_loaded = load_q_table(q_table_name="q_table_evader_best_training.txt", player_type="evader")
-    if successfully_loaded:
-        test("evader", total_episodes= 50, episode_time_limit=35, allow_evader_manual_rescue=True, time_to_apply_action= 0.5, evader_random_walk= False)
+    # rospy.loginfo("Result from BEST TRAINING")
+    # successfully_loaded = load_q_table(q_table_name="q_table_evader_best_training.txt", player_type="evader")
+    # if successfully_loaded:
+    #     test("evader", total_episodes= 50, episode_time_limit=35, allow_evader_manual_rescue=True, time_to_apply_action= 0.5, evader_random_walk= False)
 
 
     # rospy.loginfo("Result from BEST TESTING")
