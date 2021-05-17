@@ -42,12 +42,12 @@ DISTANCE_BETWEEN_PLAYERS = None
 RESCUE_PURSUER_FAILED = False
 RESCUE_EVADER_FAILED = False
 # for ros_plaza
-# STARTING_LOCATIONS = [(0,1.2), (-2,1), (0,-1), (0,1.5), (0,-2), (-2,-1), (0.5,0), (-2,1.8),(1,0), (1,-2)]
+STARTING_LOCATIONS = [(0,1.2), (-2,1), (0,-1), (0,1.5), (0,-2), (-2,-1), (0.5,0), (-2,1.8),(1,0), (1,-2)]
 
 # for ros pillars map
 # STARTING_LOCATIONS = [(0,1), (-1,0), (0,-1), (1,0), (-1,-2), (-1,2)]
 # for original ros map with all the pillars 
-STARTING_LOCATIONS = [(0.5,-0.5), (-0.5, -0.5), (-0.5, 0.5), (0.5, 0.5), (-1,-2), (-1,2)]
+# STARTING_LOCATIONS = [(0.5,-0.5), (-0.5, -0.5), (-0.5, 0.5), (0.5, 0.5), (-1,-2), (-1,2)]
 
 # State Space Hyperparameters
 SAFE_DISTANCE_FROM_OBSTACLE = 0.3
@@ -104,7 +104,7 @@ def reward_function(player_type, state, verbose = True):
         if PURSUER_STUCK:
             # rospy.loginfo("STUCK!")
             state_description = "STUCK!"
-            reward = -30 * sigmoid(DISTANCE_BETWEEN_PLAYERS)
+            reward = -30
         elif state["Opponent Position"] == "Tagged":
             # rospy.loginfo("TAGGED!")
             state_description = "TAGGED!"
@@ -133,6 +133,7 @@ def reward_function(player_type, state, verbose = True):
 
             state_description = "Obstacle on both sides, but there is opening in front but opponent is not in front"
             reward = -sigmoid(1/PURSUER_MIN_DISTANCE_TO_OBSTACLE) - sigmoid(TRUE_DISTANCE_BETWEEN_PLAYERS) 
+        
         # if there are obstacles nearby ON ONE SIDE(that is not the evader), and the evader is far away, promote obstacles avoidance behavior
         elif (((state["Upper Left"] in ["Close", "Too Close"] and state["Opponent Position"] != "Close Left")  or \
                (state["Upper Right"] in ["Close", "Too Close"] and state["Opponent Position"] != "Close Right") or \
@@ -307,12 +308,14 @@ def get_opponent_position_rating(player_A, player_B):
     norm_B = np.linalg.norm(vector_B)
     
     angle_rad = np.arccos(dot_product/(np.dot(norm_A,norm_B)))
+    
     cross = np.cross(vector_A, vector_B)
     
     if (np.dot(plane_normal, cross) < 0):
         angle_rad *= -1 
     
     angle_deg = np.rad2deg(angle_rad)
+    
     if angle_deg < 0:
         angle_deg += 360 
     
@@ -507,6 +510,7 @@ def create_q_table(player_type = "pursuer"):
         state_dictionary = ({"Front": front_rating,  "Upper Left": upper_left_rating, \
                              "Upper Right": upper_right_rating, "Lower Left": lower_left_rating, \
                              "Lower Right": lower_right_rating, "Opponent Positon": opponent_rating})
+        
         # convert state (originally a list) to a tuple which is hashable 
         # and could be stored in the Q_table which is a dictionary
         state_tuple = tuple(state)
@@ -668,7 +672,7 @@ def get_policy(q_table, state_dictionary, verbose = True, epsilon = 1.0):
 
 def q_learning_td(player_type, q_table, learning_rate, epsilon, discount_factor, time_to_apply_action = 0.33):
     
-    # does one training episode
+    # does one q-value update
     if player_type == "pursuer":
         current_state = PURSUER_STATE_DISCRETIZED 
         player_position = np.array(PURSUER_POSITION[:2])
@@ -729,6 +733,15 @@ def random_walk_behavior(robot_type, robot_state, random_action_chance = 0.2):
 
 
 def manual_rescue(robot_type, time_to_apply_action = 0.5, verbose = False):
+    if robot_type == "pursuer":
+        robot_state = PURSUER_STATE_DISCRETIZED
+    else:
+        robot_state = EVADER_STATE_DISCRETIZED
+    
+    # don't rescue if it gets tagged before
+    if robot_state["Opponent Position"] == "Tagged":
+        return 
+
     manual_reversal(robot_type, time_to_apply_action=time_to_apply_action)
     manual_reorientation(robot_type, verbose= verbose)
     
@@ -797,6 +810,10 @@ def manual_reorientation(robot_type, time_to_apply_action=0.5, rescue_timeout_af
         if verbose:
             rospy.loginfo(rescue_status)
 
+        # if the robot gets tagged while rescuing itself, stop the rescue
+        if robot_state["Opponent Position"] == "Tagged":
+            return 
+
     if rescue_timeout:
         if robot_type == "pursuer":
             global RESCUE_PURSUER_FAILED
@@ -821,6 +838,9 @@ def manual_reversal(robot_type, time_to_apply_action=1.5):
         robot_state = PURSUER_STATE_DISCRETIZED
     else:
         robot_state = EVADER_STATE_DISCRETIZED
+
+    if robot_state["Opponent Position"] == "Tagged":
+        return 
 
     close_ratings = ["Too Close", "Close"]
     
@@ -1163,7 +1183,7 @@ def train(train_type = "pursuer", total_episodes = 1000, learning_rate = 0.2, di
                         if train_type == "evader": 
                             # if we are training the evader, the pursuer could manually reverse to rescue itself when stuck
                             # and resume chasing the evader
-                            rescue_start_time = rospy.Time.now()
+                            # rescue_start_time = rospy.Time.now()
                             rescue_thread.start()
                             last_few_pursuer_positions = []
                             # get new state after reversal
@@ -1180,7 +1200,7 @@ def train(train_type = "pursuer", total_episodes = 1000, learning_rate = 0.2, di
                             # or we could train it against an evader which uses a q-table with no reversal actions.
                             # when we are training against the latter, we have to call the manual rescue thread should
                             # the evader gets stuck since it does not have the reversal action in its q-table
-                            rescue_start_time = rospy.Time.now()
+                            # rescue_start_time = rospy.Time.now()
                             rescue_thread.start()
                             last_few_evader_positions = []
                             # get new state after reversal
@@ -1192,14 +1212,14 @@ def train(train_type = "pursuer", total_episodes = 1000, learning_rate = 0.2, di
                 last_few_evader_positions.append(EVADER_POSITION[:2])
                 
 
-                if rescue_thread.is_alive() and not evader_random_walk:
+                while (rescue_thread.is_alive() and not evader_random_walk):
                     # when waiting for the other robot to rescue itself, the current robot continue learning
                     # move_robot(player, 0,0)
                     q_learning_td(player, q_table_player, learning_rate = learning_rate, discount_factor = discount_factor, epsilon = epsilon,\
                     time_to_apply_action = time_to_apply_action)
                     rescue_thread.join()
-                    rescue_stop_time = rospy.Time.now()
-                    time_spent_on_manual_rescue += (rescue_stop_time - rescue_start_time)
+                    # rescue_stop_time = rospy.Time.now()
+                    # time_spent_on_manual_rescue += (rescue_stop_time - rescue_start_time)
 
                 if not GAME_TIMEOUT and (RESCUE_PURSUER_FAILED or RESCUE_EVADER_FAILED):
                     # if failed to rescue, break out and restart episode
@@ -1453,21 +1473,21 @@ def test(player, total_episodes = 2, episode_time_limit=30, time_to_apply_action
             last_few_evader_positions.append(EVADER_POSITION[:2])
 
             # wait for the rescue threads to join
-            if pursuer_rescue_thread.is_alive():
+            while pursuer_rescue_thread.is_alive():
                 # while waiting for pursuer to unstuck itself, continue moving the evader
                 follow_policy(player_type= "evader", q_table= Q_TABLE_EVADER, time_to_apply_action=time_to_apply_action)
                 # move_robot("evader", 0,0)
                 pursuer_rescue_thread.join()
-                pursuer_rescue_stop_time = rospy.Time.now()
-                time_spent_on_manual_rescue += (pursuer_rescue_stop_time - pursuer_rescue_start_time)
+                # pursuer_rescue_stop_time = rospy.Time.now()
+                # time_spent_on_manual_rescue += (pursuer_rescue_stop_time - pursuer_rescue_start_time)
             
 
-            if evader_rescue_thread.is_alive():
+            while evader_rescue_thread.is_alive():
                # while waiting for evader to unstuck itself, continue moving the pursuer
                 follow_policy(player_type= "pursuer", q_table= Q_TABLE_PURSUER, time_to_apply_action=time_to_apply_action)
                 evader_rescue_thread.join()
-                evader_rescue_stop_time = rospy.Time.now()
-                time_spent_on_manual_rescue += (evader_rescue_stop_time - evader_rescue_start_time)
+                # evader_rescue_stop_time = rospy.Time.now()
+                # time_spent_on_manual_rescue += (evader_rescue_stop_time - evader_rescue_start_time)
 
             # check if rescue threads were successful at rescuing the robots from being stuck
             # if not break out of current episode and restart
@@ -1486,11 +1506,11 @@ def test(player, total_episodes = 2, episode_time_limit=30, time_to_apply_action
             # run opponent's decision-making in seperate thread
             if player == "pursuer" and evader_random_walk:
                 # if we are testing the pursuer against a random-walking evader
-                opponent_decision_making_thread = threading.Thread(target = follow_policy, args=(opponent, q_table_opponent, 0.5, True))
+                opponent_decision_making_thread = threading.Thread(target = follow_policy, args=(opponent, q_table_opponent, time_to_apply_action, True))
                 opponent_decision_making_thread.start()
             else:
                 # else if we are testing the evader or testing the pursuer against an adversarial evader that uses its own q-table
-                opponent_decision_making_thread = threading.Thread(target = follow_policy, args=(opponent, q_table_opponent, 0.5))
+                opponent_decision_making_thread = threading.Thread(target = follow_policy, args=(opponent, q_table_opponent, time_to_apply_action))
                 opponent_decision_making_thread.start()
         
             # player's decision making
@@ -1585,15 +1605,21 @@ def main():
                 Q_TABLE_EVADER = pickle.load(q_table_file)
 
 
-    load_q_table(q_table_name="q_table_evader_best_training.txt", player_type="evader")
-    train(train_type = "pursuer", starting_epsilon=0.4, max_epsilon=0.95, total_episodes=25000, episode_time_limit=45, time_to_apply_action=0.5, evader_random_walk=False, do_initial_test=False)
-    
-    # # # replace_speed_in_q_table("q_table_pursuer_best_testing.txt", 0.125, 0.1)
-    # rospy.loginfo("Result from BEST TRAINING")
-    # successfully_loaded = load_q_table(q_table_name="q_table_evader_best_training.txt", player_type="evader")
-    # if successfully_loaded:
-    #     test("evader", total_episodes= 50, episode_time_limit=35, allow_evader_manual_rescue=True, time_to_apply_action= 0.5, evader_random_walk= False)
+    # load_q_table(q_table_name="q_table_evader_best_training.txt", player_type="evader")
+    # train(train_type = "pursuer", starting_epsilon=0.4, max_epsilon=0.95, total_episodes=25000, episode_time_limit=45, time_to_apply_action=0.5, evader_random_walk=False, do_initial_test=False)
 
+    load_q_table(q_table_name="q_table_pursuer_best_training.txt", player_type="pursuer")
+    train(train_type = "evader", starting_epsilon=0.45, max_epsilon=0.95, total_episodes=30000, episode_time_limit=45, time_to_apply_action=0.5, evader_random_walk=False, do_initial_test=False)
+    
+    # rospy.loginfo("Result from PURSUER BEST TRAINING")
+    # successfully_loaded = load_q_table(q_table_name="q_table_pursuer_best_training.txt", player_type="pursuer")
+    # if successfully_loaded:
+    #     test("pursuer", total_episodes= 50, episode_time_limit=90, allow_pursuer_manual_rescue=True, time_to_apply_action= 0.5, evader_random_walk= False)
+
+    rospy.loginfo("Result from EVADER BEST TRAINING")
+    successfully_loaded = load_q_table(q_table_name="q_table_evader_best_training.txt", player_type="evader")
+    if successfully_loaded:
+        test("evader", total_episodes= 50, episode_time_limit=90, allow_evader_manual_rescue=True, time_to_apply_action= 0.5, evader_random_walk= False)
 
     # rospy.loginfo("Result from BEST TESTING")
     # successfully_loaded = load_q_table(q_table_name="q_table_evader_best_testing.txt", player_type="evader")
