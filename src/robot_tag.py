@@ -42,12 +42,12 @@ DISTANCE_BETWEEN_PLAYERS = None
 RESCUE_PURSUER_FAILED = False
 RESCUE_EVADER_FAILED = False
 # for ros_plaza
-STARTING_LOCATIONS = [(0,1.2), (-2,1), (0,-1), (0,1.5), (0,-2), (-2,-1), (0.5,0), (-2,1.8),(1,0), (1,-2)]
+# STARTING_LOCATIONS = [(0,1.2), (-2,1), (0,-1), (0,1.5), (0,-2), (-2,-1), (0.5,0), (-2,1.8),(1,0), (1,-2)]
 
 # for ros pillars map
 # STARTING_LOCATIONS = [(0,1), (-1,0), (0,-1), (1,0), (-1,-2), (-1,2)]
 # for original ros map with all the pillars 
-# STARTING_LOCATIONS = [(0.5,-0.5), (-0.5, -0.5), (-0.5, 0.5), (0.5, 0.5), (-1,-2), (-1,2)]
+STARTING_LOCATIONS = [(0.5,-0.5), (-0.5, -0.5), (-0.5, 0.5), (0.5, 0.5), (-1,-2), (-1,2)]
 
 # State Space Hyperparameters
 SAFE_DISTANCE_FROM_OBSTACLE = 0.3
@@ -1608,8 +1608,8 @@ def main():
     # load_q_table(q_table_name="q_table_evader_best_training.txt", player_type="evader")
     # train(train_type = "pursuer", starting_epsilon=0.4, max_epsilon=0.95, total_episodes=25000, episode_time_limit=45, time_to_apply_action=0.5, evader_random_walk=False, do_initial_test=False)
 
-    load_q_table(q_table_name="q_table_pursuer_best_training.txt", player_type="pursuer")
-    train(train_type = "evader", starting_epsilon=0.45, max_epsilon=0.95, total_episodes=30000, episode_time_limit=45, time_to_apply_action=0.5, evader_random_walk=False, do_initial_test=False)
+    load_q_table(q_table_name="q_table_pursuer_best_training_on_ros_map_against_good_evader_90%.txt", player_type="pursuer")
+    # train(train_type = "evader", starting_epsilon=0.45, max_epsilon=0.95, total_episodes=30000, episode_time_limit=45, time_to_apply_action=0.5, evader_random_walk=False, do_initial_test=False)
     
     # rospy.loginfo("Result from PURSUER BEST TRAINING")
     # successfully_loaded = load_q_table(q_table_name="q_table_pursuer_best_training.txt", player_type="pursuer")
@@ -1619,7 +1619,7 @@ def main():
     rospy.loginfo("Result from EVADER BEST TRAINING")
     successfully_loaded = load_q_table(q_table_name="q_table_evader_best_training.txt", player_type="evader")
     if successfully_loaded:
-        test("evader", total_episodes= 50, episode_time_limit=90, allow_evader_manual_rescue=True, time_to_apply_action= 0.5, evader_random_walk= False)
+        test("evader", total_episodes= 50, episode_time_limit=90, allow_evader_manual_rescue=True, time_to_apply_action= 0.25, evader_random_walk= False)
 
     # rospy.loginfo("Result from BEST TESTING")
     # successfully_loaded = load_q_table(q_table_name="q_table_evader_best_testing.txt", player_type="evader")
