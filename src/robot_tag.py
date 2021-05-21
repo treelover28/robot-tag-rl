@@ -41,13 +41,14 @@ DISTANCE_BETWEEN_PLAYERS = None
 
 RESCUE_PURSUER_FAILED = False
 RESCUE_EVADER_FAILED = False
+
 # for ros_plaza
-# STARTING_LOCATIONS = [(0,1.2), (-2,1), (0,-1), (0,1.5), (0,-2), (-2,-1), (0.5,0), (-2,1.8),(1,0), (1,-2)]
+STARTING_LOCATIONS = [(0,1.2), (-2,1), (0,-1), (0,1.5), (0,-2), (-2,-1), (0.5,0), (-2,1.8),(1,0), (1,-2)]
 
 # for ros pillars map
 # STARTING_LOCATIONS = [(0,1), (-1,0), (0,-1), (1,0), (-1,-2), (-1,2)]
 # for original ros map with all the pillars 
-STARTING_LOCATIONS = [(0.5,-0.5), (-0.5, -0.5), (-0.5, 0.5), (0.5, 0.5), (-1,-2), (-1,2)]
+# STARTING_LOCATIONS = [(0.5,-0.5), (-0.5, -0.5), (-0.5, 0.5), (0.5, 0.5), (-1,-2), (-1,2)]
 
 # State Space Hyperparameters
 SAFE_DISTANCE_FROM_OBSTACLE = 0.3
@@ -104,7 +105,7 @@ def reward_function(player_type, state, verbose = True):
         if PURSUER_STUCK:
             # rospy.loginfo("STUCK!")
             state_description = "STUCK!"
-            reward = -30
+            reward = -30 * sigmoid(TRUE_DISTANCE_BETWEEN_PLAYERS)
         elif state["Opponent Position"] == "Tagged":
             # rospy.loginfo("TAGGED!")
             state_description = "TAGGED!"
@@ -228,7 +229,7 @@ def reward_function(player_type, state, verbose = True):
                or (TRUE_DISTANCE_BETWEEN_PLAYERS <= TRUE_SAFE_DISTANCE_FROM_OBSTACLE):
             
             state_description = "Pusuer is extremely close! Run away!!"
-            reward = -2.5 * sigmoid(1/TRUE_DISTANCE_BETWEEN_PLAYERS) 
+            reward = -5 * sigmoid(1/TRUE_DISTANCE_BETWEEN_PLAYERS) 
 
         # avoid obstacle on all sides
         elif (state["Front"] == "Close") or\
@@ -295,42 +296,76 @@ def get_opponent_position_rating(player_A, player_B):
     player_B_position = np.array(player_B[:3])
     player_B_orientation = np.array(player_B[3:])
     
+    # the normal point upward in Z-direction
     plane_normal = np.array([0,0,1])
 
+    # get current player's yaw
     _ ,_ , player_A_yaw = tf.transformations.euler_from_quaternion(player_A_orientation)
-   
-    vector_A = np.array([np.cos(player_A_yaw), np.sin(player_A_yaw), 0])
-    vector_B = player_B_position - player_A_position
-     
-    dot_product = np.dot(vector_A, vector_B)
     
-    norm_A = np.linalg.norm(vector_A)
-    norm_B = np.linalg.norm(vector_B)
+    # unit vector (from current player's coordinate frame) pointing in the direction current player orientation
+    vector_player_pose = np.array([np.cos(player_A_yaw), np.sin(player_A_yaw), 0])
+    # vector from current player to B
+    vector_player_to_opponent = player_B_position - player_A_position
+    # dot product between current player's pose vector and vector from current player to opponent
+    dot_product = np.dot(vector_player_pose, vector_player_to_opponent)
+    # length of the two vectors
+    norm_player_pose = np.linalg.norm(vector_player_pose)
+    norm_player_to_opponent = np.linalg.norm(vector_player_to_opponent)
     
-    angle_rad = np.arccos(dot_product/(np.dot(norm_A,norm_B)))
+    # angle between u and v = cos^{-1}(u . v / (|u||v|))
+    # this is the angle between current angle and current opponent
+    # this angle in degree is in [0, 180] regardless if it robot B to is to the left or right of robot A
     
-    cross = np.cross(vector_A, vector_B)
+    #
+    #             |       |
+    #             |       |
+    # same angle( A       A ) same angle
+    #           /           \ 
+    #          /             \
+    #       B                  B
+
+    # but what we really want is this
+    #
+    #           |       |
+    #           |       |
+    #           A )      A ) angle
+    #          /  reflex  \ 
+    #         /   angle    \
+    #       B                B
+
+    angle_radian = np.arccos(dot_product/(np.dot(norm_player_pose,norm_player_to_opponent)))
     
-    if (np.dot(plane_normal, cross) < 0):
-        angle_rad *= -1 
+    # surface normal of this "triangular" area 
+    surface_normal = np.cross(vector_player_pose, vector_player_to_opponent)
     
-    angle_deg = np.rad2deg(angle_rad)
+    # to get the proper angle from the right-hand-side over
+    # see second picture
+    # we observe that when the angle between the two vectors are > 180, 
+    # the surface normal of the triangle would be pointing downward, instead of in same direction as Z-axis
+    # thus, we can dot the surface normal and the plane normal to check if they are in the same direction
+    # if they are not, the dot product is negative -> we can go ahead and reverse this angle 
+    if (np.dot(plane_normal, surface_normal) < 0):
+        angle_radian *= -1 
+    # now this angle in degree is in range[-180...180]
+    angle_degree = np.rad2deg(angle_radian)
     
-    if angle_deg < 0:
-        angle_deg += 360 
+    # we make it to be in range by [0, 360] for easier intepretation
+    # offsetting any negative angle by 360 
+    if angle_degree < 0:
+        angle_degree += 360 
     
-    distance = np.linalg.norm(vector_B)
+    distance = np.linalg.norm(vector_player_to_opponent)
    
     if distance <= 0.3:
         return "Tagged"
 
     # if player_A == PURSUER_POSITION:
     #     print("angle: {}".format(angle_deg))
-    if 0 <= angle_deg < 30 or 330 <= angle_deg < 360:
+    if 0 <= angle_degree < 30 or 330 <= angle_degree < 360:
        direction_rating = "Front"
-    elif 30 <= angle_deg < 135:
+    elif 30 <= angle_degree < 135:
         direction_rating = "Left"
-    elif 225 <= angle_deg < 330:
+    elif 225 <= angle_degree < 330:
         direction_rating = "Right"
     else:
         direction_rating = "Bottom"
@@ -1186,6 +1221,7 @@ def train(train_type = "pursuer", total_episodes = 1000, learning_rate = 0.2, di
                             # rescue_start_time = rospy.Time.now()
                             rescue_thread.start()
                             last_few_pursuer_positions = []
+                            
                             # get new state after reversal
                             PURSUER_STUCK = is_stuck(last_few_pursuer_positions, robot_state=PURSUER_STATE_DISCRETIZED)
                     if len(last_few_pursuer_positions) != 0:
@@ -1217,7 +1253,7 @@ def train(train_type = "pursuer", total_episodes = 1000, learning_rate = 0.2, di
                     # move_robot(player, 0,0)
                     q_learning_td(player, q_table_player, learning_rate = learning_rate, discount_factor = discount_factor, epsilon = epsilon,\
                     time_to_apply_action = time_to_apply_action)
-                    rescue_thread.join()
+                    # rescue_thread.join()
                     # rescue_stop_time = rospy.Time.now()
                     # time_spent_on_manual_rescue += (rescue_stop_time - rescue_start_time)
 
@@ -1299,11 +1335,11 @@ def train(train_type = "pursuer", total_episodes = 1000, learning_rate = 0.2, di
                     # save the policy into a seperate Q-table everytime it achieve a high on the testing phase
                     # save q-table
                     with open("q_table_{}_best_training.txt".format(player), "w") as q_table_file:
-                        q_table_file.seek(0)
-                        q_table_file.write(pickle.dumps(q_table_player)) 
-                    best_train_score = training_reward
+                        q_table_file.seek(0) # evader_rescue_thread.join()
+                
+                # RESET TRAINING REWARD
                 training_reward = 0
-
+                
                 # plot the average distance at terminal state for every 250 episodes
                 if train_type == "pursuer":
                     _plot_learning_curve(average_distance_at_terminal_curve, current_episode, accumulated_distance_between_players_at_end/250.0)
@@ -1312,6 +1348,7 @@ def train(train_type = "pursuer", total_episodes = 1000, learning_rate = 0.2, di
                 else:
                     _plot_learning_curve(average_time_at_terminal_curve, current_episode, (accumulated_time_survived_by_evader/250.0).to_sec())
                     accumulated_time_survived_by_evader = rospy.Duration(secs = 0)
+                
 
             if current_episode % 500 == 0:
                 # plot state-action convergence graph
@@ -1477,18 +1514,19 @@ def test(player, total_episodes = 2, episode_time_limit=30, time_to_apply_action
                 # while waiting for pursuer to unstuck itself, continue moving the evader
                 follow_policy(player_type= "evader", q_table= Q_TABLE_EVADER, time_to_apply_action=time_to_apply_action)
                 # move_robot("evader", 0,0)
-                pursuer_rescue_thread.join()
+                # pursuer_rescue_thread.join()
                 # pursuer_rescue_stop_time = rospy.Time.now()
                 # time_spent_on_manual_rescue += (pursuer_rescue_stop_time - pursuer_rescue_start_time)
             
+            
 
             while evader_rescue_thread.is_alive():
-               # while waiting for evader to unstuck itself, continue moving the pursuer
+                # while waiting for evader to unstuck itself, continue moving the pursuer
                 follow_policy(player_type= "pursuer", q_table= Q_TABLE_PURSUER, time_to_apply_action=time_to_apply_action)
-                evader_rescue_thread.join()
+                # evader_rescue_thread.join()
                 # evader_rescue_stop_time = rospy.Time.now()
                 # time_spent_on_manual_rescue += (evader_rescue_stop_time - evader_rescue_start_time)
-
+           
             # check if rescue threads were successful at rescuing the robots from being stuck
             # if not break out of current episode and restart
             if not GAME_TIMEOUT and (RESCUE_PURSUER_FAILED or RESCUE_EVADER_FAILED):
@@ -1605,21 +1643,22 @@ def main():
                 Q_TABLE_EVADER = pickle.load(q_table_file)
 
 
-    # load_q_table(q_table_name="q_table_evader_best_training.txt", player_type="evader")
-    # train(train_type = "pursuer", starting_epsilon=0.4, max_epsilon=0.95, total_episodes=25000, episode_time_limit=45, time_to_apply_action=0.5, evader_random_walk=False, do_initial_test=False)
+    load_q_table(q_table_name="q_table_evader_best_training_on_ros_map_against_good_pursuer.txt", player_type="evader")
+    train(train_type = "pursuer", starting_epsilon=0.40, max_epsilon=0.95, total_episodes=30000, episode_time_limit=45, time_to_apply_action=0.5, evader_random_walk=False, do_initial_test=False)
 
-    load_q_table(q_table_name="q_table_pursuer_best_training_on_ros_map_against_good_evader_90%.txt", player_type="pursuer")
-    # train(train_type = "evader", starting_epsilon=0.45, max_epsilon=0.95, total_episodes=30000, episode_time_limit=45, time_to_apply_action=0.5, evader_random_walk=False, do_initial_test=False)
+    load_q_table(q_table_name="q_table_pursuer_best_training.txt", player_type="pursuer")
+    train(train_type = "evader", starting_epsilon=0.40, max_epsilon=0.95, total_episodes=30000, episode_time_limit=45, time_to_apply_action=0.5, evader_random_walk=False, do_initial_test=False)
     
-    # rospy.loginfo("Result from PURSUER BEST TRAINING")
-    # successfully_loaded = load_q_table(q_table_name="q_table_pursuer_best_training.txt", player_type="pursuer")
-    # if successfully_loaded:
-    #     test("pursuer", total_episodes= 50, episode_time_limit=90, allow_pursuer_manual_rescue=True, time_to_apply_action= 0.5, evader_random_walk= False)
+    rospy.loginfo("Result from PURSUER BEST TRAINING")
+    successfully_loaded_pursuer = load_q_table(q_table_name="q_table_pursuer_best_training.txt", player_type="pursuer")
+    successfully_loaded_evader = load_q_table(q_table_name="q_table_evader_best_training.txt", player_type="evader")
+    if successfully_loaded_pursuer and successfully_loaded_evader:
+        test("pursuer", total_episodes= 50, episode_time_limit=90, allow_pursuer_manual_rescue=True, time_to_apply_action= 0.5, evader_random_walk= False)
 
-    rospy.loginfo("Result from EVADER BEST TRAINING")
-    successfully_loaded = load_q_table(q_table_name="q_table_evader_best_training.txt", player_type="evader")
-    if successfully_loaded:
-        test("evader", total_episodes= 50, episode_time_limit=90, allow_evader_manual_rescue=True, time_to_apply_action= 0.25, evader_random_walk= False)
+    # rospy.loginfo("Result from EVADER BEST TRAINING")
+    # successfully_loaded = load_q_table(q_table_name="q_table_evader_best_testing_on_ros_map_against_good_pursuer.txt", player_type="evader")
+    # if successfully_loaded:
+    #     test("evader", total_episodes= 50, episode_time_limit=90, allow_evader_manual_rescue=True, time_to_apply_action= 0.25, evader_random_walk= False)
 
     # rospy.loginfo("Result from BEST TESTING")
     # successfully_loaded = load_q_table(q_table_name="q_table_evader_best_testing.txt", player_type="evader")
