@@ -34,10 +34,14 @@ EVADER_STATE_DISCRETIZED = None
 EVADER_STATE_CONTINUOUS = None
 EVADER_STUCK = False
 EVADER_POSITION = None 
+NUM_TIMES_EVADER_STUCK_IN_EPISODE = 0
 
 EVADER_MIN_DISTANCE_TO_OBSTACLE = None
 PURSUER_MIN_DISTANCE_TO_OBSTACLE = None 
 DISTANCE_BETWEEN_PLAYERS = None
+
+PURSUER_WAS_STUCK_BUT_RESCUED = False 
+EVADER_WAS_STUCK_BUT_RESCUED = False 
 
 RESCUE_PURSUER_FAILED = False
 RESCUE_EVADER_FAILED = False
@@ -102,7 +106,7 @@ def reward_function(player_type, state, verbose = True):
         TRUE_SAFE_DISTANCE_FROM_OBSTACLE = (PURSUER_RADIUS + SAFE_DISTANCE_FROM_OBSTACLE)
 
         # rospy.loginfo("PURSUER_MIN_DISTANCE: {}\nTRUE_DISTANCE_BETWEEN_PLAYERS: {}\nTRUE_SAFE_DISTANCE_FROM_OBSTACLE: {}".format(PURSUER_MIN_DISTANCE_TO_OBSTACLE, TRUE_DISTANCE_BETWEEN_PLAYERS ,TRUE_SAFE_DISTANCE_FROM_OBSTACLE))
-        if PURSUER_STUCK:
+        if PURSUER_STUCK or PURSUER_WAS_STUCK_BUT_RESCUED:
             # rospy.loginfo("STUCK!")
             state_description = "STUCK!"
             reward = -30 * sigmoid(TRUE_DISTANCE_BETWEEN_PLAYERS)
@@ -143,7 +147,7 @@ def reward_function(player_type, state, verbose = True):
             ) and TRUE_DISTANCE_BETWEEN_PLAYERS > TRUE_SAFE_DISTANCE_FROM_OBSTACLE\
               and PURSUER_MIN_DISTANCE_TO_OBSTACLE_DIRECTION != "Front": 
 
-            state_description = "Obstacle is a lot nearer on the sides compared to evader. Prioritize obstacle avoidance"
+            state_description = "Obstacle is a lot nearer on the75 sides compared to evader. Prioritize obstacle avoidance"
             # extra punishment depending on how far the evader is and how close the pursuer is to an obstacle
             reward = -0.5 - sigmoid(TRUE_DISTANCE_BETWEEN_PLAYERS) - sigmoid(1/PURSUER_MIN_DISTANCE_TO_OBSTACLE)
         
@@ -207,72 +211,112 @@ def reward_function(player_type, state, verbose = True):
         TRUE_DISTANCE_BETWEEN_PLAYERS = (DISTANCE_BETWEEN_PLAYERS - PURSUER_RADIUS)
         TRUE_SAFE_DISTANCE_FROM_OBSTACLE = (EVADER_RADIUS + SAFE_DISTANCE_FROM_OBSTACLE)
 
-        if EVADER_STUCK:
+        if EVADER_STUCK or EVADER_WAS_STUCK_BUT_RESCUED:
             state_description = "STUCK!"
-            reward = -30
+            reward = -5 
         elif state["Opponent Position"] == "Tagged":
             state_description = "TAGGED!"
             reward = -30 
-        # elif GAME_TIMEOUT:
-        #     state_description = "Game Timeout. Evader survived!"
-        #     reward = 30
-        # if the other robot is nearby and there is an obstacle, there is a chance that obstacle 
-        # may be the pursuer, so we discourage those states
-        # or if the distance between players are very close
-        elif (((state["Upper Left"] in ["Close", "Too Close"] and state["Opponent Position"] == "Close Left")  or \
-               (state["Upper Right"] in ["Close", "Too Close"] and state["Opponent Position"] == "Close Right") or \
-               (state["Lower Left"] in ["Close", "Too Close"] and state["Opponent Position"] == "Close Left") or \
-               (state["Lower Right"] in ["Close", "Too Close"] and state["Opponent Position"] == "Close Right") or \
-               (state["Opponent Position"] == "Close Bottom")  or \
-               (state["Front"] in ["Close"] and state["Opponent Position"] == "Close Front"))\
-               and TRUE_DISTANCE_BETWEEN_PLAYERS <= EVADER_MIN_DISTANCE_TO_OBSTACLE)\
-               or (TRUE_DISTANCE_BETWEEN_PLAYERS <= TRUE_SAFE_DISTANCE_FROM_OBSTACLE):
-            
-            state_description = "Pusuer is extremely close! Run away!!"
-            reward = -5 * sigmoid(1/TRUE_DISTANCE_BETWEEN_PLAYERS) 
-
+        elif GAME_TIMEOUT:
+            state_description = "Game Timeout"
+            reward = (30 * sigmoid(TRUE_DISTANCE_BETWEEN_PLAYERS))/(NUM_TIMES_EVADER_STUCK_IN_EPISODE + 1)
         # avoid obstacle on all sides
-        elif (state["Front"] == "Close") or\
-            (state["Upper Left"] in ["Close", "Too Close"]) or\
-            (state["Upper Right"] in ["Close", "Too Close"]) or\
-            (state["Lower Left"] in ["Close", "Too Close"]) or\
-            (state["Lower Right"] in ["Close", "Too Close"]):
-     
-            state_description = "Obstacle nearby. Prioritize obstacle avoidance"
+        elif (state["Front"] == "Close"):
+            state_description = "Obstacle really close by in front! Prioritize obstacle avoidance"
+            reward = -0.5 - sigmoid(1.0/TRUE_DISTANCE_BETWEEN_PLAYERS) - sigmoid(1.0/EVADER_MIN_DISTANCE_TO_OBSTACLE)
+        elif (state["Upper Left"] == "Too Close") or\
+            (state["Upper Right"] == "Too Close") or\
+            (state["Lower Left"] == "Too Close") or\
+            (state["Lower Right"] == "Too Close"):
+            state_description = "Obstacle really closeby on the side. Prioritize obstacle avoidance"
             # extra punishments depending on how close the pursuer is and how close the evader is to an obstacle
-            reward = - sigmoid(1.0/TRUE_DISTANCE_BETWEEN_PLAYERS) - sigmoid(1.0/EVADER_MIN_DISTANCE_TO_OBSTACLE)
-        
+            reward = -0.5 - sigmoid(1.0/TRUE_DISTANCE_BETWEEN_PLAYERS) - sigmoid(1.0/EVADER_MIN_DISTANCE_TO_OBSTACLE)
+        # encourage keeping a safe distance from obstacle
+        elif ((state["Upper Left"] == "OK" and state["Lower Left"] == "OK") or (state["Upper Right"] == "OK" and state["Lower Right"] == "OK"))\
+            and TRUE_DISTANCE_BETWEEN_PLAYERS >= 0.75:
+            state_description = "Robot is maintaing safe distance from obstacle on either side"
+            reward = 0.5 + sigmoid(EVADER_MIN_DISTANCE_TO_OBSTACLE) - sigmoid(1/TRUE_DISTANCE_BETWEEN_PLAYERS)
         elif state["Opponent Position"] == "Front" and TRUE_DISTANCE_BETWEEN_PLAYERS <= 1.0:
             # discourage evader from moving toward the pursuer when they are within 1.0 unit from each other
             state_description = "Pursuer is in front within 1.0 unit of distance! Go the opposite direction"
-            reward = -1.0 * sigmoid(1.0/TRUE_DISTANCE_BETWEEN_PLAYERS)
-        elif state["Opponent Position"] == "Front":
-            state_description = "Pursuer is in front but we are not close"
-            reward = -0.5 * sigmoid(1.0/TRUE_DISTANCE_BETWEEN_PLAYERS)
+            reward = -0.25 - sigmoid(1.0/TRUE_DISTANCE_BETWEEN_PLAYERS) - sigmoid(1.0/EVADER_MIN_DISTANCE_TO_OBSTACLE)
+        elif state["Opponent Position"] == "Bottom" and TRUE_DISTANCE_BETWEEN_PLAYERS >= 1.0:
+            state_description = "Pursue is behind and far away"
+            reward = 0.5 + sigmoid(TRUE_DISTANCE_BETWEEN_PLAYERS) - sigmoid(1.0/EVADER_MIN_DISTANCE_TO_OBSTACLE)
         elif state["Opponent Position"] == "Bottom" and TRUE_DISTANCE_BETWEEN_PLAYERS >= 0.75:
-            state_description = "Pursuer is behind but not that close"
-            reward = 2 * sigmoid(TRUE_DISTANCE_BETWEEN_PLAYERS) - sigmoid(PURSUER_MIN_DISTANCE_TO_OBSTACLE)
-        elif state["Opponent Position"] == "Bottom" :
-            state_description = "Pursuer is behind but somewhat close"
-            reward = -1.0 * sigmoid(1.0/TRUE_DISTANCE_BETWEEN_PLAYERS)
-
-        # there is no obstacle nearby and the pursuer is far away
-        elif state["Upper Left"] not in ["Close", "Too Close"] and state["Lower Left"] not in ["Close", "Too Close"]\
-            and state["Upper Right"] not in ["Close", "Too Close"] and state["Lower Right"] not in ["Close", "Too Close"]\
-            and state["Front"] != "Close" and TRUE_DISTANCE_BETWEEN_PLAYERS >= 1.0:
-            
-            state_description = "Safe from obstacle and opponent is far away"
-            reward = 3.5 * sigmoid(PURSUER_MIN_DISTANCE_TO_OBSTACLE) - sigmoid(1/TRUE_DISTANCE_BETWEEN_PLAYERS)  
-        
-        # there is no obstacle nearby and the pursuer is far away
-        elif state["Upper Left"] not in ["Close", "Too Close"] and state["Lower Left"] not in ["Close", "Too Close"]\
-            and state["Upper Right"] not in ["Close", "Too Close"] and state["Lower Right"] not in ["Close", "Too Close"]\
-            and state["Front"] != "Close" and TRUE_DISTANCE_BETWEEN_PLAYERS >= SAFE_DISTANCE_FROM_OBSTACLE:
-            state_description = "Safe from obstacle and opponent is within safe distance"
-            reward = 2.5 * sigmoid(PURSUER_MIN_DISTANCE_TO_OBSTACLE) - sigmoid(1/TRUE_DISTANCE_BETWEEN_PLAYERS)  
+            state_description = "Pursue is behind and decent distance away"
+            reward = 0.25 + sigmoid(TRUE_DISTANCE_BETWEEN_PLAYERS) - sigmoid(1.0/EVADER_MIN_DISTANCE_TO_OBSTACLE)
+        elif "Close" not in state["Opponent Position"] and TRUE_DISTANCE_BETWEEN_PLAYERS >= 0.75:
+            state_description = "Pursuer is not close by we are relatively safe from obstacle"
+            reward = 0.5 + sigmoid(TRUE_DISTANCE_BETWEEN_PLAYERS) - sigmoid(1.0/EVADER_MIN_DISTANCE_TO_OBSTACLE)
+        elif "Close" not in state["Opponent Position"]:
+            state_description = "Pursuer is in vincinity but we are relatively safe from obstacle"
+            reward = sigmoid(TRUE_DISTANCE_BETWEEN_PLAYERS) - sigmoid(1.0/EVADER_MIN_DISTANCE_TO_OBSTACLE)
+        elif "Close" in state["Opponent Position"]:
+            state_description = "Pursuer is extremely close. Run away!"
+            reward = -1 - 2 *sigmoid(1.0/TRUE_DISTANCE_BETWEEN_PLAYERS) - sigmoid(1.0/EVADER_MIN_DISTANCE_TO_OBSTACLE)
         else:
             state_description = "Neutral state"
-            reward = 0
+            reward = 0.25
+
+
+        # # if the other robot is nearby and there is an obstacle, there is a chance that obstacle 
+        # # may be the pursuer, so we discourage those states
+        # # or if the distance between players are very close
+        # elif (((state["Upper Left"] in ["Close", "Too Close"] and state["Opponent Position"] == "Close Left")  or \
+        #        (state["Upper Right"] in ["Close", "Too Close"] and state["Opponent Position"] == "Close Right") or \
+        #        (state["Lower Left"] in ["Close", "Too Close"] and state["Opponent Position"] == "Close Left") or \
+        #        (state["Lower Right"] in ["Close", "Too Close"] and state["Opponent Position"] == "Close Right") or \
+        #        (state["Opponent Position"] == "Close Bottom")  or \
+        #        (state["Front"] in ["Close"] and state["Opponent Position"] == "Close Front"))\
+        #        and TRUE_DISTANCE_BETWEEN_PLAYERS <= EVADER_MIN_DISTANCE_TO_OBSTACLE)\
+        #        or (TRUE_DISTANCE_BETWEEN_PLAYERS <= TRUE_SAFE_DISTANCE_FROM_OBSTACLE):
+            
+        #     state_description = "Pusuer is extremely close! Run away!!"
+        #     reward = -5 * sigmoid(1/TRUE_DISTANCE_BETWEEN_PLAYERS) 
+
+        # # avoid obstacle on all sides
+        # elif (state["Front"] == "Close") or\
+        #     (state["Upper Left"] in ["Close", "Too Close"]) or\
+        #     (state["Upper Right"] in ["Close", "Too Close"]) or\
+        #     (state["Lower Left"] in ["Close", "Too Close"]) or\
+        #     (state["Lower Right"] in ["Close", "Too Close"]):
+     
+        #     state_description = "Obstacle nearby. Prioritize obstacle avoidance"
+        #     # extra punishments depending on how close the pursuer is and how close the evader is to an obstacle
+        #     reward = - sigmoid(1.0/TRUE_DISTANCE_BETWEEN_PLAYERS) - sigmoid(1.0/EVADER_MIN_DISTANCE_TO_OBSTACLE)
+        
+        # elif state["Opponent Position"] == "Front" and TRUE_DISTANCE_BETWEEN_PLAYERS <= 1.5:
+        #     # discourage evader from moving toward the pursuer when they are within 1.0 unit from each other
+        #     state_description = "Pursuer is in front within 1.5 unit of distance! Go the opposite direction"
+        #     reward = -1.0 * sigmoid(1.0/TRUE_DISTANCE_BETWEEN_PLAYERS)
+        # elif state["Opponent Position"] == "Front":
+        #     state_description = "Pursuer is in front but we are not close"
+        #     reward = -0.5 * sigmoid(1.0/TRUE_DISTANCE_BETWEEN_PLAYERS)
+        # elif state["Opponent Position"] == "Bottom" and TRUE_DISTANCE_BETWEEN_PLAYERS >= 1.5:
+        #     state_description = "Pursuer is behind but not that close"
+        #     reward = 2 * sigmoid(TRUE_DISTANCE_BETWEEN_PLAYERS) - sigmoid(PURSUER_MIN_DISTANCE_TO_OBSTACLE)
+        # elif state["Opponent Position"] == "Bottom" :
+        #     state_description = "Pursuer is behind but somewhat close"
+        #     reward = -1.0 * sigmoid(1.0/TRUE_DISTANCE_BETWEEN_PLAYERS)
+
+        # # there is no obstacle nearby and the pursuer is far away
+        # elif state["Upper Left"] not in ["Close", "Too Close"] and state["Lower Left"] not in ["Close", "Too Close"]\
+        #     and state["Upper Right"] not in ["Close", "Too Close"] and state["Lower Right"] not in ["Close", "Too Close"]\
+        #     and state["Front"] != "Close" and TRUE_DISTANCE_BETWEEN_PLAYERS >= 1.5:
+            
+        #     state_description = "Safe from obstacle and opponent is far away"
+        #     reward = 2.5 * sigmoid(PURSUER_MIN_DISTANCE_TO_OBSTACLE) - sigmoid(1/TRUE_DISTANCE_BETWEEN_PLAYERS)  
+        
+        # # there is no obstacle nearby and the pursuer is far away
+        # elif state["Upper Left"] not in ["Close", "Too Close"] and state["Lower Left"] not in ["Close", "Too Close"]\
+        #     and state["Upper Right"] not in ["Close", "Too Close"] and state["Lower Right"] not in ["Close", "Too Close"]\
+        #     and state["Front"] != "Close" and TRUE_DISTANCE_BETWEEN_PLAYERS >= SAFE_DISTANCE_FROM_OBSTACLE:
+        #     state_description = "Safe from obstacle and opponent is within safe distance"
+        #     reward = 1.5 * sigmoid(PURSUER_MIN_DISTANCE_TO_OBSTACLE) - sigmoid(1/TRUE_DISTANCE_BETWEEN_PLAYERS)  
+        # else:
+        #     state_description = "Neutral state"
+        #     reward = 0.5
     
     if verbose:
         # rospy.loginfo("DISTANCE BTW PLAYER: {}, PURSUER_MIN_DIST_OBSTACLE = {}, TRUE_SAFE_DISTANCE_FROM_OBSTACLE = {}".format(TRUE_DISTANCE_BETWEEN_PLAYERS, PURSUER_MIN_DISTANCE_TO_OBSTACLE, TRUE_SAFE_DISTANCE_FROM_OBSTACLE))
@@ -337,15 +381,16 @@ def get_opponent_position_rating(player_A, player_B):
     
     # surface normal of this "triangular" area 
     surface_normal = np.cross(vector_player_pose, vector_player_to_opponent)
-    
     # to get the proper angle from the right-hand-side over
     # see second picture
     # we observe that when the angle between the two vectors are > 180, 
     # the surface normal of the triangle would be pointing downward, instead of in same direction as Z-axis
     # thus, we can dot the surface normal and the plane normal to check if they are in the same direction
     # if they are not, the dot product is negative -> we can go ahead and reverse this angle 
-    if (np.dot(plane_normal, surface_normal) < 0):
-        angle_radian *= -1 
+    
+    if np.dot(plane_normal, surface_normal) < 0:
+        angle_radian *= -1
+    
     # now this angle in degree is in range[-180...180]
     angle_degree = np.rad2deg(angle_radian)
     
@@ -354,13 +399,6 @@ def get_opponent_position_rating(player_A, player_B):
     if angle_degree < 0:
         angle_degree += 360 
     
-    distance = np.linalg.norm(vector_player_to_opponent)
-   
-    if distance <= 0.3:
-        return "Tagged"
-
-    # if player_A == PURSUER_POSITION:
-    #     print("angle: {}".format(angle_deg))
     if 0 <= angle_degree < 30 or 330 <= angle_degree < 360:
        direction_rating = "Front"
     elif 30 <= angle_degree < 135:
@@ -369,12 +407,18 @@ def get_opponent_position_rating(player_A, player_B):
         direction_rating = "Right"
     else:
         direction_rating = "Bottom"
-    
-    distance_rating = ""
-    if distance <= TRUE_SAFE_DISTANCE_FROM_OBSTACLE * 1.2:
-        distance_rating = "Close"
-    
-    return (distance_rating + " " + direction_rating).strip()
+
+    # get distance between player
+    distance = np.linalg.norm(vector_player_to_opponent)
+   
+    if distance <= 0.3:
+        rating = "Tagged"
+    elif distance <= TRUE_SAFE_DISTANCE_FROM_OBSTACLE * 1.2:
+        rating = "Close " + direction_rating
+    else:
+        rating = direction_rating
+
+    return rating
 
 def get_distance_rating(direction, distance, player_type):
 
@@ -388,7 +432,7 @@ def get_distance_rating(direction, distance, player_type):
         #     rospy.loginfo("TRUE_SAFE_DISTANCE_ : {}".format(TRUE_SAFE_DISTANCE_FROM_OBSTACLE))
         #     rospy.loginfo("EVADER's front distance is : {}".format(distance))
         interval = TRUE_SAFE_DISTANCE_FROM_OBSTACLE / 1.5
-        if distance <= interval * 1.35:
+        if distance <= interval * 1.45:
             rating = "Close"
         elif distance <= interval * 2.2:
             rating = "OK"
@@ -804,36 +848,13 @@ def manual_reorientation(robot_type, time_to_apply_action=0.5, rescue_timeout_af
             rescue_timeout = True
             rescue_status = "Rescue Timeout!"
             continue 
-
-        # if the robot could not either the robot's left side is too close to an obstacle for a valid reversal left turn 
-        # or the robot's right side is too close to obstacles for a valid reversal right turn
-        if (to_turn_left and (robot_state["Upper Left"] == "Too Close" and robot_state["Lower Left"] == "Too Close"))\
-            or (not to_turn_left and (robot_state["Upper Right"] == "Too Close" and robot_state["Lower Right"] == "Too Close")):
-            # go straight for a bit if the robot could not turn left or right
-            if robot_state["Front"] != "Close":
-                rescue_status = "Reorient by going straight"
-                move_robot(robot_type, 0.1, 0)
-            else:
-                rescue_status = "Reorient by going backward"
-                move_robot(robot_type, -0.1,0)
-
-        elif to_turn_left:
-        # spin robot to search for opening
-            if (robot_state["Lower Right"] == "Too Close" and robot_state["Upper Right"] == "Too Close"):
-                move_robot(robot_type, -0.2, -40)
-                rescue_status = "Reorient to face left by reversing to left side"
-            else:
-                move_robot(robot_type,0, 40)
-                # move_robot(robot_type, 0, 20)
-                rescue_status = "Reorient to face left by spinning to right side"
+        
+        # spin to find opening
+        if to_turn_left:
+            move_robot(robot_type,0, 60)
         else:
-            if (robot_state["Lower Left"] == "Too Close" and robot_state["Upper Left"] == "Too Close"):
-                move_robot(robot_type, -0.2, 40)
-                rescue_status = "Reorient to face right by reversing to right side"
-            else:
-                move_robot(robot_type,0, -40)
-                rescue_status = "Reorient to face right by spinning to left side"
-
+            move_robot(robot_type, 0, -60)
+       
         rospy.sleep(time_to_apply_action)
         
         # fetch new robot state
@@ -863,7 +884,7 @@ def manual_reorientation(robot_type, time_to_apply_action=0.5, rescue_timeout_af
             RESCUE_EVADER_FAILED = True
             EVADER_STUCK = True
     
-    # stop robot once opponent is in front
+    # stop robot once opening is in front
     move_robot(robot_type, 0, 0)
     
     
@@ -947,7 +968,7 @@ def is_stuck(last_few_positions, robot_state):
         is_stuck = is_near_obstacle and is_in_same_place
     return is_stuck
 
-def is_terminal_state(train_type, game_timeout, pursuer_stuck, evader_stuck, opponent_rating, verbose=True):
+def is_terminal_state(train_type, game_timeout, pursuer_stuck, evader_stuck, opponent_rating, verbose=True, allow_player_rescue = False):
     if opponent_rating == "Tagged": 
         is_terminal = True
         terminal_status = "Terminated because TAGGED. Pursuer Won"
@@ -956,11 +977,11 @@ def is_terminal_state(train_type, game_timeout, pursuer_stuck, evader_stuck, opp
         terminal_status = "Terminated because game-timeot. Evader won"
     # if we are just training the pursuer, even if the evader gets stuck
     # we still let the pursuer run until it catches the evader, or gets stucks itself
-    elif train_type == "pursuer" and pursuer_stuck:
+    elif train_type == "pursuer" and pursuer_stuck and not allow_player_rescue:
         is_terminal = True
         terminal_status = "Terminated because pursuer is STUCK"
     # when training the evader, terminate when the evader gets stuck
-    elif train_type == "evader" and evader_stuck:
+    elif train_type == "evader" and evader_stuck and not allow_player_rescue:
         is_terminal = True
         terminal_status = "Terminated because evader is STUCK"
     else:
@@ -976,9 +997,12 @@ def spawn_robots():
     # spawn pursuers and evaders at different locations throughout the map 
     pursuer_position = None 
     evader_position = None 
-    while (pursuer_position == evader_position):
+
+    is_far_enough = False
+    while (pursuer_position == evader_position or not is_far_enough):
         pursuer_position = STARTING_LOCATIONS[random.randint(0, len(STARTING_LOCATIONS) - 1)]
         evader_position = STARTING_LOCATIONS[random.randint(0, len(STARTING_LOCATIONS) - 1)]
+        is_far_enough = np.linalg.norm(np.array(pursuer_position) - np.array(evader_position)) > 0.5
     
     set_robot_position("pursuer", pursuer_position)
     set_robot_position("evader", evader_position)
@@ -989,7 +1013,7 @@ def _plot_learning_curve(line_chart, new_x, new_y):
     plt.draw()
     plt.pause(0.001)
 
-def train(train_type = "pursuer", total_episodes = 1000, learning_rate = 0.2, discount_factor = 0.8, starting_epsilon = 0.2, max_epsilon = 0.9, episode_time_limit = 30, time_to_apply_action=0.5, evader_random_walk = False, do_initial_test = False):
+def train(train_type = "pursuer", total_episodes = 1000, learning_rate = 0.2, discount_factor = 0.8, starting_epsilon = 0.2, max_epsilon = 0.9, episode_time_limit = 30, time_to_apply_action=0.5, evader_random_walk = False, do_initial_test = False, allow_player_manual_rescue= False):
     
     if train_type not in ["pursuer", "evader"]:
         rospy.loginfo("Unrecognized train type. Either \"puruser\" or \"evader\"")
@@ -1018,7 +1042,7 @@ def train(train_type = "pursuer", total_episodes = 1000, learning_rate = 0.2, di
     ax[0,0].set_xlabel("Training episode")
     ax[0,0].set_ylabel("Accumulated rewards")
     ax[0,0].set_xlim(0 , total_episodes)
-    ax[0,0].set_ylim(-100, 100)
+    ax[0,0].set_ylim(-200, 100)
     ax[0,0].set_title("Accumulated Rewards vs Training episodes")
     ax[0,0].legend(loc="upper left")
     ax[0,0].axhline(y= 0, color = "g", linestyle = "-")
@@ -1054,7 +1078,7 @@ def train(train_type = "pursuer", total_episodes = 1000, learning_rate = 0.2, di
         ax[0,2].set_ylim(0, 6.0)
         ax[0,2].legend(loc="upper right")
         ax[0,2].set_title("Average distance between players after game ends")
-    else:
+    elif train_type == "evader" and not allow_player_manual_rescue:
         average_time_at_terminal_curve, = ax[0,2].plot([],[], "g-", marker="x", label = "Average time survived")
         ax[0,2].set_xlabel("Number of Episodes")
         ax[0,2].set_ylabel("Average time suvived")
@@ -1062,6 +1086,14 @@ def train(train_type = "pursuer", total_episodes = 1000, learning_rate = 0.2, di
         ax[0,2].set_ylim(0, episode_time_limit)
         ax[0,2].legend(loc="upper right")
         ax[0,2].set_title("Average time survived by evader")
+    else:
+        num_evader_stuck_curve, = ax[0,2].plot([],[], "g-", marker="x", label = "Average number of time evader got stuck")
+        ax[0,2].set_xlabel("Number of Episodes")
+        ax[0,2].set_ylabel("Average number of time stuck")
+        ax[0,2].set_xlim(0, total_episodes)
+        ax[0,2].set_ylim(0, 5)
+        ax[0,2].legend(loc="upper right")
+        ax[0,2].set_title("Average numer of times evader got stuck")
 
 
     go_left_when_opponent_left_curve, = ax[1,0].plot([], [], "g-", marker="x", label = "Left Turn Proportion")
@@ -1119,7 +1151,9 @@ def train(train_type = "pursuer", total_episodes = 1000, learning_rate = 0.2, di
     # num_times_go_front_opponent_is_bottom = 0
     accumulated_distance_between_players_at_end = 0.0
     accumulated_time_survived_by_evader = rospy.Duration(secs = 0)
-    
+    accumulated_num_stuck_by_evader = 0
+
+   
     while current_episode < total_episodes:
         if (PURSUER_STATE_DISCRETIZED is not None and EVADER_STATE_DISCRETIZED is not None):
             rospy.loginfo("Starting Episode {}".format(current_episode))
@@ -1149,7 +1183,7 @@ def train(train_type = "pursuer", total_episodes = 1000, learning_rate = 0.2, di
             global RESCUE_PURSUER_FAILED
             RESCUE_EVADER_FAILED = False
             RESCUE_PURSUER_FAILED = False
-
+         
             last_few_pursuer_positions = []
             last_few_evader_positions = []
 
@@ -1165,6 +1199,7 @@ def train(train_type = "pursuer", total_episodes = 1000, learning_rate = 0.2, di
                 elif train_type == "evader":
                     # rospy.loginfo(player_to_train)
                     test_reward, num_tagged, num_stuck, num_timeout = test(player, total_episodes = 40, episode_time_limit=episode_time_limit, time_to_apply_action=time_to_apply_action, evader_random_walk= evader_random_walk, allow_pursuer_manual_rescue= True)
+                
                 if test_reward > best_test_score:
                     # save the policy into a seperate Q-table everytime it achieve a high on the testing phase
                     # save q-table
@@ -1198,7 +1233,11 @@ def train(train_type = "pursuer", total_episodes = 1000, learning_rate = 0.2, di
             time_elapsed = rospy.Duration(secs=0)
             time_spent_on_manual_rescue = rospy.Duration(secs=0)
             
-            while(not is_terminal_state(train_type, GAME_TIMEOUT, PURSUER_STUCK, EVADER_STUCK, PURSUER_STATE_DISCRETIZED["Opponent Position"])):
+            global NUM_TIMES_EVADER_STUCK_IN_EPISODE
+            NUM_TIMES_EVADER_STUCK_IN_EPISODE = 0
+
+           
+            while(not is_terminal_state(train_type, GAME_TIMEOUT, PURSUER_STUCK, EVADER_STUCK, PURSUER_STATE_DISCRETIZED["Opponent Position"], verbose=False, allow_player_rescue = allow_player_manual_rescue)):
                 # get time elapsed so far 
                 time_elapsed = (rospy.Time.now() - start_time) - time_spent_on_manual_rescue
                 
@@ -1206,22 +1245,28 @@ def train(train_type = "pursuer", total_episodes = 1000, learning_rate = 0.2, di
                 if time_elapsed >= rospy.Duration(secs = episode_time_limit):
                     GAME_TIMEOUT = True
                 
+                global PURSUER_WAS_STUCK_BUT_RESCUED
+                global EVADER_WAS_STUCK_BUT_RESCUED
+            
+                PURSUER_WAS_STUCK_BUT_RESCUED = False
+                EVADER_WAS_STUCK_BUT_RESCUED = False
+
                 # initialize a seperate thread to handle rescuing the opponent should it gets stuck
                 # since we are training our player, we assume the opponent is already good
                 # training episode would only terminate if the player gets stuck but not when the opponent gets stuck 
-                rescue_thread = threading.Thread(target=manual_rescue, args = (opponent, 1.0))
+                pursuer_rescue_thread = threading.Thread(target=manual_rescue, args = ("pursuer", 1.0))
+                evader_rescue_thread = threading.Thread(target=manual_rescue, args= ("evader", 1.0))
                 
                 # check if robots are stuck, the robot is considered stuck if it has been in the same location for >= 1.5 seconds
                 if len(last_few_pursuer_positions) == int(1.5/time_to_apply_action):
                     PURSUER_STUCK = is_stuck(last_few_pursuer_positions, robot_state=PURSUER_STATE_DISCRETIZED)
                     if PURSUER_STUCK and not GAME_TIMEOUT:
-                        if train_type == "evader": 
+                        if train_type == "evader" or (train_type == "pursuer" and allow_player_manual_rescue): 
                             # if we are training the evader, the pursuer could manually reverse to rescue itself when stuck
                             # and resume chasing the evader
-                            # rescue_start_time = rospy.Time.now()
-                            rescue_thread.start()
+                            # rescue_pursuer_start_time = rospy.Time.now()
+                            pursuer_rescue_thread.start()
                             last_few_pursuer_positions = []
-                            
                             # get new state after reversal
                             PURSUER_STUCK = is_stuck(last_few_pursuer_positions, robot_state=PURSUER_STATE_DISCRETIZED)
                     if len(last_few_pursuer_positions) != 0:
@@ -1230,14 +1275,15 @@ def train(train_type = "pursuer", total_episodes = 1000, learning_rate = 0.2, di
                 if len(last_few_evader_positions) == int(1.5/time_to_apply_action):
                     EVADER_STUCK = is_stuck(last_few_evader_positions, robot_state=EVADER_STATE_DISCRETIZED)
                     if EVADER_STUCK and not GAME_TIMEOUT:
-                        if train_type == "pursuer" and not evader_random_walk: 
+                        NUM_TIMES_EVADER_STUCK_IN_EPISODE += 1
+                        if (train_type == "pursuer" and not evader_random_walk) or (train_type == "evader" and allow_player_manual_rescue): 
                             # when training the pursuer, we have two modes
                             # we could either train it against a random-walking evader that has a reversal already coded in
                             # or we could train it against an evader which uses a q-table with no reversal actions.
                             # when we are training against the latter, we have to call the manual rescue thread should
                             # the evader gets stuck since it does not have the reversal action in its q-table
-                            # rescue_start_time = rospy.Time.now()
-                            rescue_thread.start()
+                            # rescue_evader_start_time = rospy.Time.now()
+                            evader_rescue_thread.start()
                             last_few_evader_positions = []
                             # get new state after reversal
                             EVADER_STUCK = is_stuck(last_few_evader_positions, robot_state=EVADER_STATE_DISCRETIZED)
@@ -1248,14 +1294,31 @@ def train(train_type = "pursuer", total_episodes = 1000, learning_rate = 0.2, di
                 last_few_evader_positions.append(EVADER_POSITION[:2])
                 
 
-                while (rescue_thread.is_alive() and not evader_random_walk):
-                    # when waiting for the other robot to rescue itself, the current robot continue learning
-                    # move_robot(player, 0,0)
-                    q_learning_td(player, q_table_player, learning_rate = learning_rate, discount_factor = discount_factor, epsilon = epsilon,\
-                    time_to_apply_action = time_to_apply_action)
-                    # rescue_thread.join()
+                while pursuer_rescue_thread.is_alive():
+                    if train_type == "evader" and not evader_random_walk:
+                        # while waiting for opponent pursuer to rescue itself, the agent evader continues learninng
+                        q_learning_td(player, q_table_player, learning_rate = learning_rate, discount_factor = discount_factor, epsilon = epsilon,\
+                        time_to_apply_action = time_to_apply_action)
+                    elif train_type == "pursuer":
+                        follow_policy(player_type= "evader", q_table= Q_TABLE_EVADER, time_to_apply_action=time_to_apply_action)
+                    
+                    PURSUER_WAS_STUCK_BUT_RESCUED = True
                     # rescue_stop_time = rospy.Time.now()
-                    # time_spent_on_manual_rescue += (rescue_stop_time - rescue_start_time)
+                    # time_spent_on_manual_rescue += (rescue_stop_time - rescue_pursuer_start_time)
+
+                while evader_rescue_thread.is_alive():
+                    if train_type == "pursuer":
+                        # continue training pursuer while opponent evader rescue itself
+                        q_learning_td(player, q_table_player, learning_rate = learning_rate, discount_factor = discount_factor, epsilon = epsilon,\
+                        time_to_apply_action = time_to_apply_action)
+                    elif train_type == "evader":
+                        follow_policy(player_type= "pursuer", q_table= Q_TABLE_PURSUER, time_to_apply_action=time_to_apply_action)
+                    # evader_rescue_thread.join()
+                   
+                    EVADER_WAS_STUCK_BUT_RESCUED = True
+
+                    # evader_rescue_stop_time = rospy.Time.now()
+                    # time_spent_on_manual_rescue += (evader_rescue_stop_time - rescue_evader_start_time)
 
                 if not GAME_TIMEOUT and (RESCUE_PURSUER_FAILED or RESCUE_EVADER_FAILED):
                     # if failed to rescue, break out and restart episode
@@ -1326,28 +1389,35 @@ def train(train_type = "pursuer", total_episodes = 1000, learning_rate = 0.2, di
             # accumulate time the evader survived on the map so far
             accumulated_time_survived_by_evader += time_elapsed
             training_reward += accumulated_reward
-            
+            accumulated_num_stuck_by_evader += NUM_TIMES_EVADER_STUCK_IN_EPISODE
 
             if current_episode % 250 == 0:
                 # plot learning curve using the average reward each 250 training episodes
-                _plot_learning_curve(learning_curve,current_episode, training_reward/250)
+                training_reward /= 250.0
+                _plot_learning_curve(learning_curve,current_episode, training_reward)
+
                 if training_reward > best_train_score:
+                    best_train_score = training_reward
                     # save the policy into a seperate Q-table everytime it achieve a high on the testing phase
                     # save q-table
                     with open("q_table_{}_best_training.txt".format(player), "w") as q_table_file:
                         q_table_file.seek(0) # evader_rescue_thread.join()
+                        q_table_file.write(pickle.dumps(q_table_player))
                 
                 # RESET TRAINING REWARD
-                training_reward = 0
+                training_reward = 0.0
                 
                 # plot the average distance at terminal state for every 250 episodes
                 if train_type == "pursuer":
                     _plot_learning_curve(average_distance_at_terminal_curve, current_episode, accumulated_distance_between_players_at_end/250.0)
                     # reset
                     accumulated_distance_between_players_at_end = 0
-                else:
+                elif train_type == "evader" and not allow_player_manual_rescue:
                     _plot_learning_curve(average_time_at_terminal_curve, current_episode, (accumulated_time_survived_by_evader/250.0).to_sec())
                     accumulated_time_survived_by_evader = rospy.Duration(secs = 0)
+                else:
+                    _plot_learning_curve(num_evader_stuck_curve, current_episode, accumulated_num_stuck_by_evader/250.0)
+                    accumulated_num_stuck_by_evader = 0
                 
 
             if current_episode % 500 == 0:
@@ -1455,6 +1525,12 @@ def test(player, total_episodes = 2, episode_time_limit=30, time_to_apply_action
         while(not is_terminal_state(train_type=player, game_timeout= GAME_TIMEOUT ,pursuer_stuck= PURSUER_STUCK, evader_stuck= EVADER_STUCK, \
                                     opponent_rating = current_state["Opponent Position"], verbose=True)):
             
+            
+            global PURSUER_WAS_STUCK_BUT_RESCUED
+            global EVADER_WAS_STUCK_BUT_RESCUED
+            
+            PURSUER_WAS_STUCK_BUT_RESCUED = False
+            EVADER_WAS_STUCK_BUT_RESCUED = False
             # initialize the rescue-reversal behavior for the opponent since we want to 
             # test how our agent performs around an adversarial opponent
             # initialize two rescue threads, they might be used or not at all depending on the parameters 
@@ -1517,6 +1593,7 @@ def test(player, total_episodes = 2, episode_time_limit=30, time_to_apply_action
                 # pursuer_rescue_thread.join()
                 # pursuer_rescue_stop_time = rospy.Time.now()
                 # time_spent_on_manual_rescue += (pursuer_rescue_stop_time - pursuer_rescue_start_time)
+                PURSUER_WAS_STUCK_BUT_RESCUED = True
             
             
 
@@ -1526,7 +1603,8 @@ def test(player, total_episodes = 2, episode_time_limit=30, time_to_apply_action
                 # evader_rescue_thread.join()
                 # evader_rescue_stop_time = rospy.Time.now()
                 # time_spent_on_manual_rescue += (evader_rescue_stop_time - evader_rescue_start_time)
-           
+                EVADER_WAS_STUCK_BUT_RESCUED = True
+            
             # check if rescue threads were successful at rescuing the robots from being stuck
             # if not break out of current episode and restart
             if not GAME_TIMEOUT and (RESCUE_PURSUER_FAILED or RESCUE_EVADER_FAILED):
@@ -1643,17 +1721,21 @@ def main():
                 Q_TABLE_EVADER = pickle.load(q_table_file)
 
 
-    load_q_table(q_table_name="q_table_evader_best_training_on_ros_map_against_good_pursuer.txt", player_type="evader")
-    train(train_type = "pursuer", starting_epsilon=0.40, max_epsilon=0.95, total_episodes=30000, episode_time_limit=45, time_to_apply_action=0.5, evader_random_walk=False, do_initial_test=False)
+    # load_q_table(q_table_name="q_table_evader_best_training_on_ros_map_against_good_pursuer.txt", player_type="evader")
+    # train(train_type = "pursuer", starting_epsilon=0.40, max_epsilon=0.95, total_episodes=30000, episode_time_limit=45, time_to_apply_action=0.5, evader_random_walk=False, do_initial_test=False)
 
-    load_q_table(q_table_name="q_table_pursuer_best_training.txt", player_type="pursuer")
-    train(train_type = "evader", starting_epsilon=0.40, max_epsilon=0.95, total_episodes=30000, episode_time_limit=45, time_to_apply_action=0.5, evader_random_walk=False, do_initial_test=False)
+    load_q_table(q_table_name="q_table_pursuer_best_testing_on_ros_map_against_good_evader.txt", player_type="pursuer")
+    train(train_type = "evader", starting_epsilon=0.40, max_epsilon=0.95, total_episodes=25000, episode_time_limit=45, time_to_apply_action=0.5, evader_random_walk=False, do_initial_test=False, allow_player_manual_rescue=True)
     
-    rospy.loginfo("Result from PURSUER BEST TRAINING")
-    successfully_loaded_pursuer = load_q_table(q_table_name="q_table_pursuer_best_training.txt", player_type="pursuer")
-    successfully_loaded_evader = load_q_table(q_table_name="q_table_evader_best_training.txt", player_type="evader")
-    if successfully_loaded_pursuer and successfully_loaded_evader:
-        test("pursuer", total_episodes= 50, episode_time_limit=90, allow_pursuer_manual_rescue=True, time_to_apply_action= 0.5, evader_random_walk= False)
+    # load_q_table(q_table_name="q_table_evader_best_training.txt", player_type="evader")
+    # train(train_type = "pursuer", starting_epsilon=0.40, max_epsilon=0.95, total_episodes=30000, episode_time_limit=45, time_to_apply_action=0.5, evader_random_walk=False, do_initial_test=False)
+
+
+    # rospy.loginfo("Result from PURSUER BEST TESTING")
+    # successfully_loaded_pursuer = load_q_table(q_table_name="q_table_pursuer_best_training_on_ros_map_against_good_evader_90%.txt", player_type="pursuer")
+    # successfully_loaded_evader = load_q_table(q_table_name="q_table_evader_best_testing_on_ros_map_against_good_pursuer.txt", player_type="evader")
+    # if successfully_loaded_pursuer and successfully_loaded_evader:
+    #     test("pursuer", total_episodes= 50, episode_time_limit=90, allow_pursuer_manual_rescue=True, time_to_apply_action= 0.25, evader_random_walk= False)
 
     # rospy.loginfo("Result from EVADER BEST TRAINING")
     # successfully_loaded = load_q_table(q_table_name="q_table_evader_best_testing_on_ros_map_against_good_pursuer.txt", player_type="evader")
@@ -1661,9 +1743,10 @@ def main():
     #     test("evader", total_episodes= 50, episode_time_limit=90, allow_evader_manual_rescue=True, time_to_apply_action= 0.25, evader_random_walk= False)
 
     # rospy.loginfo("Result from BEST TESTING")
-    # successfully_loaded = load_q_table(q_table_name="q_table_evader_best_testing.txt", player_type="evader")
+    # successfully_loaded_pursuer = load_q_table(q_table_name="q_table_pursuer_best_training_on_ros_map_against_good_evader_90%.txt", player_type="pursuer")
+    # successfully_loaded = load_q_table(q_table_name="q_table_evader_best_training.txt", player_type="evader")
     # if successfully_loaded:
-    #     test("evader", total_episodes= 100, episode_time_limit=90, allow_evader_manual_rescue=True, time_to_apply_action= 0.5, evader_random_walk= False)
+    #     test("evader", total_episodes= 100, episode_time_limit=90, allow_evader_manual_rescue=True, time_to_apply_action= 0.25, evader_random_walk= False)
     
 
     # rospy.loginfo("Result from NORMAL")
@@ -1672,7 +1755,7 @@ def main():
     #     test("evader", total_episodes= 100, episode_time_limit=90, allow_evader_manual_rescue=True, time_to_apply_action= 0.5, evader_random_walk= False)
     
     
-    
+    # move_robot("evader", 0.0,0)
     
     # rospy.spin()
 
