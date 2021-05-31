@@ -1,3 +1,4 @@
+
 def _get_permutations(current_list_index, lists, prefix, k, states_accumulator):
     """ Helper function to generate all permutations of length n with replacements
     using elements in choices list. The prefix is the current partial permutation
@@ -19,3 +20,6 @@ def _get_permutations(current_list_index, lists, prefix, k, states_accumulator):
     for i in range(len(list_to_select_from)):
         new_prefix = (prefix + [list_to_select_from[i]])
         _get_permutations(current_list_index + 1, lists, new_prefix, k-1, states_accumulator)
+
+
+

@@ -314,7 +314,7 @@ class Simple_Q_Learning_Agent(Base_Agent):
             # avoid obstacle on all sides
             elif (state["Front"] == "Close"):
                 state_description = "Obstacle really close by in front! Prioritize obstacle avoidance"
-                reward = -0.5 - sigmoid(1.0/true_distance_between_player) - sigmoid(1.0/evader_min_distance_to_obstacle)
+                reward = -0.75 - sigmoid(1.0/true_distance_between_player) - sigmoid(1.0/evader_min_distance_to_obstacle)
             elif (state["Upper Left"] == "Too Close") or\
                 (state["Upper Right"] == "Too Close") or\
                 (state["Lower Left"] == "Too Close") or\

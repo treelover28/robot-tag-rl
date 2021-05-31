@@ -1,6 +1,7 @@
 import matplotlib.pyplot as plt
 import numpy as np
 
+
 class Learning_Plotter:
     def __init__(self, train_type, total_episodes, episode_time_limit, training_algorithm_name, allow_player_manual_rescue = False):
         # create subplot of 2 rows, 3 columns
@@ -21,7 +22,7 @@ class Learning_Plotter:
         self.ax[0,0].set_xlabel("Training episode")
         self.ax[0,0].set_ylabel("Accumulated rewards")
         self.ax[0,0].set_xlim(0 , total_episodes)
-        self.ax[0,0].set_ylim(-200, 100)
+        self.ax[0,0].set_ylim(-5, 5)
         self.ax[0,0].set_title("Accumulated Rewards vs Training episodes")
         self.ax[0,0].legend(loc="upper left")
         self.ax[0,0].axhline(y= 0, color = "g", linestyle = "-")
@@ -115,5 +116,5 @@ class Learning_Plotter:
         plt.draw()
         plt.pause(0.001)
 
-    def savefig(figure_name):
-        plt.savefig(figure_name, dpi=100)
+    def savefig(self, figure_name, dpi):
+        plt.savefig(figure_name, dpi=dpi)
