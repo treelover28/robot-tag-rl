@@ -15,8 +15,8 @@
   <!-- Uncomment the map you wish to use and comment out the rest -->
     <!-- <arg name="world_name" value="$(find robot_tag)/worlds/ros_map_simple_five_pillars_with_no_wall.world"/> -->
     <!-- <arg name="world_name" value="$(find robot_tag)/worlds/ros_map_simple_five_pillars_with_wall.world"/> -->
-    <!-- <arg name="world_name" value="$(find robot_tag)/worlds/ros_map_simple_one_pillar.world"/> -->
-    <arg name="world_name" value="$(find robot_tag)/worlds/ros_map.world"/>
+    <arg name="world_name" value="$(find robot_tag)/worlds/ros_map_simple_one_pillar.world"/>
+    <!-- <arg name="world_name" value="$(find robot_tag)/worlds/ros_map.world"/> -->
     <!-- <arg name="world_name" value="$(find robot_tag)/worlds/ros_plaza.world"/> -->
     <arg name="paused" value="false"/>
     <arg name="use_sim_time" value="true"/>
