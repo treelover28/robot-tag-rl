@@ -19,7 +19,7 @@ class Base_Agent(object):
     def learn(self, epsilon, time_to_apply_action):
         raise NotImplementedError
 
-    def follow_policy(self, time_to_apply_action):
+    def follow_policy(self, time_to_apply_action, verbose):
         raise NotImplementedError
 
     def save_agent(self, agent_filename):

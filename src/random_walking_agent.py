@@ -21,7 +21,7 @@ class Random_Walking_Agent(Base_Agent):
         rospy.loginfo("Random Walking Agent does not learn")
         pass
 
-    def follow_policy(self, time_to_apply_action):
+    def follow_policy(self, time_to_apply_action, verbose = False):
         translational_velocity, angular_velocity = self._random_walk_behavior()
         self.agent_take_action_function(self.agent_type, translational_velocity, angular_velocity, time_to_apply_action)
 
@@ -35,7 +35,7 @@ class Random_Walking_Agent(Base_Agent):
     
     def _random_walk_behavior(self):
         is_stuck = self.get_game_information("{}_stuck".format(self.agent_type))
-        robot_state = self.get_agent_state_function(self.agent_type)
+        robot_state = self.get_agent_state_function(self.agent_type, "discrete")
 
         if robot_state["Front"] == "Close" and robot_state["Upper Left"] == "Too Close" and robot_state["Upper Right"] == "Too Close" and is_stuck:
             translation_speed = -0.1 

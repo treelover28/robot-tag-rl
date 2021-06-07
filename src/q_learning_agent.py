@@ -132,16 +132,20 @@ class Simple_Q_Learning_Agent(Base_Agent):
         return -1,-1
 
     
-    def follow_policy(self, time_to_apply_action = 0.33):
+    def follow_policy(self, time_to_apply_action = 0.33, verbose = False):
 
-        current_state = self.get_agent_state_function(self.agent_type)
+        current_state = self.get_agent_state_function(self.agent_type, "discrete")
+        
+        if verbose:
+            rospy.loginfo("Q-Learning agent's current state is {}".format(current_state))
+
         translation_velocity, angular_velocity = self.get_policy(current_state, verbose= False, epsilon = 1.0)
         self.agent_take_action_function(self.agent_type, translation_velocity, angular_velocity, time_to_apply_action)
 
     def learn(self, epsilon, time_to_apply_action = 0.33):
         # Learn using Q-Learning
         # does one q-value update
-        current_state = self.get_agent_state_function(self.agent_type)
+        current_state = self.get_agent_state_function(self.agent_type, "discrete")
             
         rospy.loginfo("Epsilon: {}".format(epsilon))
         
@@ -153,9 +157,9 @@ class Simple_Q_Learning_Agent(Base_Agent):
         self.agent_take_action_function(self.agent_type, translation_speed, turn_action, time_to_apply_action)
         
         # robot is now in new state S' 
-        new_state = self.get_agent_state_function(self.agent_type)
+        new_state = self.get_agent_state_function(self.agent_type, "discrete")
         # robot now observes reward R(S') at this new state S'
-        reward = self.reward_function(new_state)
+        reward, _ = self.reward_function(new_state)
         
         # update Q-value for Q(S,A)
         # Q(S,A) = Q(S,A) +  learning_rate*(reward + discount_factor* (argmax_A' Q(S', A')) - Q(S,A))
@@ -188,6 +192,7 @@ class Simple_Q_Learning_Agent(Base_Agent):
         num_times_evader_stuck_in_episode = self.get_game_information("num_times_evader_stuck_in_episode")
         distance_between_players = self.get_game_information("distance_between_players")
 
+        is_terminal_state = False
         if self.agent_type == "pursuer":
             # if the pursuer gets stuck, it loses that game -> negative reward
             # the negative reward is also based on how badly it lost that round
@@ -203,10 +208,12 @@ class Simple_Q_Learning_Agent(Base_Agent):
                 # rospy.loginfo("STUCK!")
                 state_description = "STUCK!"
                 reward = -30 * sigmoid(true_distance_between_player)
+                is_terminal_state = True
             elif state["Opponent Position"] == "Tagged":
                 # rospy.loginfo("TAGGED!")
                 state_description = "TAGGED!"
                 reward = 30 
+                is_terminal_state = True
 
             # there are obstacle on BOTH sides but there is an opening in front, and opponent is also in front
             elif (state["Upper Left"] in ["Close","Too Close"] or state["Upper Right"] in ["Close","Too Close"])\
@@ -215,7 +222,7 @@ class Simple_Q_Learning_Agent(Base_Agent):
                 
                 state_description = "Obstacle on both sides, but there is opening in front and the target is in front nearby"
                 reward = -sigmoid(1/pursuer_min_distance_to_obstacle) + 2*sigmoid(1/true_distance_between_player)
-            
+
             # there are obstacle on BOTH sides but there is an opening in front, and opponent is also in front
             elif (state["Upper Left"] in ["Close","Too Close"] or state["Upper Right"] in ["Close","Too Close"])\
                 and (state["Upper Right"] in ["Close", "Too Close"] or state["Lower Right"] in ["Close", "Too Close"])\
@@ -304,10 +311,12 @@ class Simple_Q_Learning_Agent(Base_Agent):
 
             if evader_stuck or evader_was_stuck_but_rescued:
                 state_description = "STUCK!"
-                reward = -30 
+                reward = -30
+                is_terminal_state = True 
             elif state["Opponent Position"] == "Tagged":
                 state_description = "TAGGED!"
-                reward = -30 
+                reward = -30
+                is_terminal_state = True
             elif game_timeout:
                 state_description = "Game Timeout"
                 reward = (30 * sigmoid(true_distance_between_player))/(num_times_evader_stuck_in_episode + 1)
@@ -357,7 +366,7 @@ class Simple_Q_Learning_Agent(Base_Agent):
             rospy.loginfo("{}'s state's is {}".format(self.agent_type, state_description))
             rospy.loginfo("{}'s reward is {}".format(self.agent_type, reward))
 
-        return reward 
+        return (reward, is_terminal_state)
 
 
     def save_agent(self, q_table_name):
