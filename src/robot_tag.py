@@ -57,10 +57,10 @@ RESCUE_PURSUER_FAILED = False
 RESCUE_EVADER_FAILED = False
 
 # for ros_plaza
-# STARTING_LOCATIONS = [(0,1.2), (-2,1), (0,-1), (0,1.5), (0,-2), (-2,-1), (0.5,0), (-2,1.8),(1,0), (1,-2)]
+STARTING_LOCATIONS = [(0,1.2), (-2,1), (0,-1), (0,1.5), (0,-2), (-2,-1), (0.5,0), (-2,1.8),(1,0), (1,-2)]
 
 # for ros 5 pillars map
-STARTING_LOCATIONS = [(0,1), (-1,0), (0,-1), (1,0), (-1,-2), (-1,2)]
+# STARTING_LOCATIONS = [(0,1), (-1,0), (0,-1), (1,0), (-1,-2), (-1,2)]
 
 # for original ros map with all the pillars 
 # STARTING_LOCATIONS = [(0.5,-0.5), (-0.5, -0.5), (-0.5, 0.5), (0.5, 0.5), (-1,-2), (-1,2)]
@@ -70,11 +70,7 @@ STARTING_LOCATIONS = [(0,1), (-1,0), (0,-1), (1,0), (-1,-2), (-1,2)]
 
 # State Space Hyperparameters
 SAFE_DISTANCE_FROM_OBSTACLE = 0.3
-ROTATIONAL_ACTIONS = [60,40, 20, 5, 0, -5, -20,-40,-60]
-# slow speed 0.1 to help it slow down when near obstacle
-# regular speed is 0.2 
-# negative velocity is to help it reverse and rescue itself whenever it gets stuck
-TRANSLATION_SPEED = [0.1, 0.2]
+
 DIRECTIONAL_STATES = ["Front", "Upper Left", "Upper Right", "Lower Left", "Lower Right","Opponent Position"]
 FRONT_RATINGS = ["Close", "OK", "Far"]
 UPPER_LEFT_RATINGS = ["Too Close", "Close", "OK", "Far"]
@@ -1225,17 +1221,17 @@ def main():
     
     # pursuer_agent = Simple_Q_Learning_Agent("pursuer", 0.2 , 0.8 ,[],[], get_robot_state_discretized, robot_take_action, get_game_information)
     action_space = []
-    translation_actions= [0.1, 0.2]
+    translation_actions= [0.2]
     rotational_actions = [-60, -40, -20, -5, 0, 5, 20, 40, 60]
     _get_permutations(0, [translation_actions, rotational_actions] ,list(), 2, action_space)
 
-    pursuer_agent = DQN_Agent(agent_type = "pursuer", input_layer_size = 7, output_layer_size = len(translation_actions)* len(rotational_actions), hidden_layers = [16,16,16,16],\
-        action_space = action_space, activation_function = relu, activation_function_derivative = relu_derivative, num_steps_to_update_network = 2000, batch_size = 64,
-        learning_rate = 0.00005, discount_factor = 0.95, get_agent_state_function = get_robot_state, agent_take_action_function = robot_take_action, get_game_information= get_game_information)
+    # pursuer_agent = DQN_Agent(agent_type = "pursuer", input_layer_size = 7, output_layer_size = len(translation_actions)* len(rotational_actions), hidden_layers = [50,50,50],\
+    #     action_space = action_space, activation_function = relu, activation_function_derivative = relu_derivative, num_steps_to_update_network = 2000, batch_size = 64,
+    #     learning_rate = 0.00025, discount_factor = 0.99, get_agent_state_function = get_robot_state, agent_take_action_function = robot_take_action, get_game_information= get_game_information)
 
     
-    # pursuer_agent = DQN_Agent.load_agent("DQN_pursuer_best_testing.txt")
-    # pursuer_agent = Simple_Q_Learning_Agent("pursuer", 0.2, 0.8, [], [], get_robot_state_discretized, robot_take_action, get_game_information)
+    pursuer_agent = DQN_Agent.load_agent("DQN_pursuer_best_training.txt")
+    # pursuer_agent = Simple_Q_Learning_Agent("pursuer", 0.2, 0.8, [], [], get_robot_state, robot_take_action, get_game_information)
     # successfully_loaded_pursuer = pursuer_agent.load_agent("q_table_pursuer_best_training_on_ros_map_against_good_evader_90%.txt")
 
     evader_agent = Random_Walking_Agent("evader", get_robot_state, robot_take_action, get_game_information, 0.20)
@@ -1246,10 +1242,9 @@ def main():
    
     # evader_agent = Simple_Q_Learning_Agent("evader", 0.2, 0.8,[],[], get_robot_state, robot_take_action, get_game_information)
     # successfully_loaded_evader = evader_agent.load_agent("q_table_evader_best_testing.txt")
-
-    train("pursuer", pursuer_agent, evader_agent, total_episodes= 20000, starting_epsilon=0.4, max_epsilon=0.9, episode_time_limit=45, time_to_apply_action= 0.5, do_initial_test=False, allow_player_manual_rescue=False)
+    # train("pursuer", pursuer_agent, evader_agent, total_episodes= 25000, starting_epsilon=0.1, max_epsilon=0.9, episode_time_limit=45, time_to_apply_action= 0.5, do_initial_test=False, allow_player_manual_rescue=False)
     # if successfully_loaded_pursuer and successfully_loaded_evader:
-    # test("pursuer", pursuer_agent, evader_agent, total_episodes=100, episode_time_limit= 90, time_to_apply_action=0.25, allow_evader_manual_rescue= True, allow_pursuer_manual_rescue=True)
+    test("pursuer", pursuer_agent, evader_agent, total_episodes=100, episode_time_limit= 90, time_to_apply_action=0.25, allow_evader_manual_rescue= True, allow_pursuer_manual_rescue=True)
     
     # move_robot("evader", 0.0,0)
     

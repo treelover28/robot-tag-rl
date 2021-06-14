@@ -93,7 +93,7 @@ class DQN_Agent(Base_Agent):
         
      
         # replay buffer to store experiences for experience replay
-        self.replay_buffer = deque(maxlen=1000)
+        self.replay_buffer = deque(maxlen=10000)
 
         # layers of the Deep Q-Network
         self.network_layers = []
@@ -176,6 +176,7 @@ class DQN_Agent(Base_Agent):
 
         # get optimal policy based on state
         translation_velocity, angular_velocity = self.get_policy(current_state, epsilon = 0.95, verbose= True)
+        
         # make agent take action
         self.agent_take_action_function(self.agent_type, translation_velocity, angular_velocity, time_to_apply_action)
 
@@ -203,12 +204,14 @@ class DQN_Agent(Base_Agent):
             
             
             # uniformly sample random experiences in the past to decorrelate learning with regards to experiences to follow one another
-            experience_indices = np.random.choice(len(self.replay_buffer), mini_batch_size, replace=False)
+            # use Combined Experience Replay as described by https://arxiv.org/pdf/1712.01275.pdf
+            # we add the latest transition to the batch as well
+            experience_indices = np.random.choice(len(self.replay_buffer), mini_batch_size  - 1, replace=False)
             accumulated_loss = 0.0
             accumulated_current_q = 0.0
             accumulated_target_q = 0.0
 
-            for idx in experience_indices:
+            for idx in np.append(experience_indices,-1):
                 current_state, action, new_state, reward, is_terminal = self.replay_buffer[idx]
                 
                 # get current network's approximation of q-values of actions Q(s,a; theta_current) for current state s
@@ -284,6 +287,7 @@ class DQN_Agent(Base_Agent):
         is_terminal_state = False
         
         if self.agent_type == "pursuer":
+            # print("agent_type {}".format(self.agent_type))
             # if the pursuer gets stuck, it loses that game -> negative reward
             # the negative reward is also based on how badly it lost that round
 
@@ -455,9 +459,9 @@ class DQN_Agent(Base_Agent):
             # rospy.loginfo("DISTANCE BTW PLAYER: {}, PURSUER_MIN_DIST_OBSTACLE = {}, TRUE_SAFE_DISTANCE_FROM_OBSTACLE = {}".format(TRUE_DISTANCE_BETWEEN_PLAYERS, PURSUER_MIN_DISTANCE_TO_OBSTACLE, TRUE_SAFE_DISTANCE_FROM_OBSTACLE))
             # rospy.loginfo("{}'s state is {}".format(self.agent_type, state))
             rospy.loginfo("{}'s reward state's is {}".format(self.agent_type, state_description))
-            rospy.loginfo("{}'s reward is {}".format(self.agent_type, reward / 30))
+            rospy.loginfo("{}'s reward is {}".format(self.agent_type, reward))
 
-        return (reward / 30.0, is_terminal_state)
+        return (reward, is_terminal_state)
 
 
 
