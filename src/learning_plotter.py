@@ -27,7 +27,7 @@ class Learning_Plotter:
         self.ax[0,0].set_xlabel("Training episode")
         self.ax[0,0].set_ylabel("Accumulated rewards")
         self.ax[0,0].set_xlim(0 , total_episodes)
-        self.ax[0,0].set_ylim(-150, 150)
+        self.ax[0,0].set_ylim(-100,100)
         self.ax[0,0].set_title("Accumulated Rewards vs Training episodes")
         self.ax[0,0].legend(loc="upper left")
         self.ax[0,0].axhline(y= 0, color = "g", linestyle = "-")
@@ -120,7 +120,7 @@ class Learning_Plotter:
             self.ax[2,0].set_xlabel("Number of episodes")
             self.ax[2,0].set_ylabel("Average Q-value")
             self.ax[2,0].set_xlim(0, total_episodes)
-            self.ax[2,0].set_ylim(-60,60)
+            self.ax[2,0].set_ylim(-10,10)
             self.ax[2,0].legend(loc="upper left")
             self.ax[2,0].set_title("Average Q-value of all actions across training episodes")
 
