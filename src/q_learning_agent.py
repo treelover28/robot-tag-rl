@@ -134,6 +134,9 @@ class Simple_Q_Learning_Agent(Base_Agent):
         return -1,-1
 
     def get_current_state_discrete(self, verbose = False):
+        '''
+        This method takes the agent's LIDAR Readings and discretize them into a discrete state using helper functions. Please refer to Khai Lai's paper for the code's logic.
+        '''
         lidar_readings = None 
         while(lidar_readings == None):
             # get lidar range-readings from game environment
@@ -197,6 +200,11 @@ class Simple_Q_Learning_Agent(Base_Agent):
         
 
     def get_opponent_position_rating(self, player_A, player_B):
+        '''
+        The method performs different Linear Algebra manuevers to get a discretized rating 
+        of where player_B is from the perspective of player_A. Please see Khai Lai's paper for more detailed
+        explanation
+        '''
 
         # get pursuer and evader location from game environment
         pursuer_position = self.get_game_information("pursuer_position")

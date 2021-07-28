@@ -42,6 +42,7 @@ PURSUER_STUCK = False
 EVADER_POSITION = None 
 EVADER_STUCK = False
 NUM_TIMES_EVADER_STUCK_IN_EPISODE = 0
+NUM_TIMES_PURSUER_STUCK_IN_EPISODE = 0
 
 DISTANCE_BETWEEN_PLAYERS = None
 
@@ -55,10 +56,10 @@ RESCUE_EVADER_FAILED = False
 # STARTING_LOCATIONS = [(0,1.2), (-2,1), (0,-1), (0,1.5), (0,-2), (-2,-1), (0.5,0), (-2,1.8),(1,0), (1,-2)]
 
 # for ros 5 pillars map
-STARTING_LOCATIONS = [(0,1), (-1,0), (0,-1), (1,0), (-1,-2), (-1,2)]
+# STARTING_LOCATIONS = [(0,1), (-1,0), (0,-1), (1,0), (-1,-2), (-1,2)]
 
 # for original ros map with all the pillars 
-# STARTING_LOCATIONS = [(0.5,-0.5), (-0.5, -0.5), (-0.5, 0.5), (0.5, 0.5), (-1,-2), (-1,2)]
+STARTING_LOCATIONS = [(0.5,-0.5), (-0.5, -0.5), (-0.5, 0.5), (0.5, 0.5), (-1,-2), (-1,2)]
 
 # for empty ros map with one pillar
 # STARTING_LOCATIONS = [(0.5,-0.5), (-0.5, -0.5), (-0.5, 0.5), (0.5, 0.5), (-1,-2), (-1,2),(0,1), (-1,0), (0,-1), (1,0)]
@@ -95,6 +96,9 @@ EVADER_RADIUS = 1.0/8 # 2 Burgers is roughly 1 waffle width wise
 
 
 def set_lidar_readings(message,args):
+    '''
+    Get a message from ROS Subscriber to the Scan topic to get an agent's LIDAR readings.
+    '''
     # LiDAR range readings
     ranges_data = message.ranges
     # maximum range of the LiDAR
@@ -122,6 +126,9 @@ def get_lidar_readings(player_type):
 
 
 def get_robot_location(message, args):
+    '''
+    Get a message from ROS Subscriber to the Odometry topic to get an agent's position/location on the map.
+    '''
     player_type = args["player_type"]
     verbose = args["verbose"]
     
@@ -146,7 +153,7 @@ def get_robot_location(message, args):
 
 def _move_robot(player_type, translation_speed, angular_speed_degrees):
     """ Receive a linear speed and an angular speed (degrees/second), craft a Twist message,
-    and send it to the /cmd_vel  topic to make the robot move
+    and send it to the /cmd_vel  topic on ROS to make the robot move.
     """
     twist_message = Twist()
     twist_message.linear.x = translation_speed
@@ -168,6 +175,10 @@ def robot_take_action(player_type, translational_speed, angular_speed, time_to_t
 
 
 def set_robot_position(model_name, pose):
+    '''
+    Function to communicate with Gazebo to spawn the agent at a specific pose.
+    The pose parameter is simple (x,y) tuple specifying the agent's spawn coordinate.
+    '''
     position_x, position_y = pose 
 
     robot_position_msg = ModelState()
@@ -185,18 +196,25 @@ def set_robot_position(model_name, pose):
 
 
 def manual_rescue(agent, time_to_apply_action = 0.5, verbose = False):
+    '''
+    This function attempts to rescue/unstuck an agent should it collides with a nearby obstacles by first reversing in an approriate direction
+    and spinning to reorient the agent toward an open space.
+    '''
     robot_state = agent.get_current_state_discrete()
     
     # don't rescue if it gets tagged before
     if robot_state["Opponent Position"] == "Tagged":
         return
 
-
     manual_reversal(agent,time_to_apply_action=time_to_apply_action)
     manual_reorientation(agent, verbose= verbose)
     
 
 def manual_reorientation(agent, time_to_apply_action=0.5, rescue_timeout_after_n_seconds = 10, verbose = False):
+    '''
+    This function reorients/rotates the agent to find an opening in front of it. This function is a part of the
+    manual_rescue function which attempts to unstuck a stuck agent.
+    '''
     robot_state = agent.get_current_state_discrete()
     
 
@@ -253,6 +271,10 @@ def manual_reorientation(agent, time_to_apply_action=0.5, rescue_timeout_after_n
     
     
 def manual_reversal(agent, time_to_apply_action=1.5):
+    '''
+    This function deterministically take control of the agent and tries to reverse it.
+    This function is a part of the manual_rescue function which attempts to unstuck a stuck agent.
+    '''
     robot_state = agent.get_current_state_discrete()
 
     if robot_state["Opponent Position"] == "Tagged":
@@ -288,7 +310,11 @@ def manual_reversal(agent, time_to_apply_action=1.5):
 
 
 def spawn_robots():
-    # spawn pursuers and evaders at different locations throughout the map 
+    '''
+    This function spawns the pursuer and evader at different locations throughout the map randomly sampled from a
+    predefined list of possible starting locations.
+    '''
+    
     pursuer_position = None 
     evader_position = None 
 
@@ -303,6 +329,9 @@ def spawn_robots():
 
 
 def get_game_information(information_name):
+    '''
+    This function is used to pass game information to the agents
+    '''
     # get in-game information
     if information_name == "pursuer_position":
         information =  PURSUER_POSITION
@@ -335,57 +364,88 @@ def get_game_information(information_name):
     return information
 
 def is_stuck(last_few_positions, robot_state):
-        # Checking if the robot is stuck requires info about 
-        # whether it is near an obstacle and if its location has not changed in a while.
+    '''
+    This function checks if an agent is stuck given a list of the agent's past few positions/poses
+    '''
+    # Checking if the robot is stuck requires info about 
+    # whether it is near an obstacle and if its location has not changed in a while.
+    
+    # Checking if the location hasn't changed alone is not sufficient 
+    # since the robot could be moving very slowly => the algorithm thinks it is stuck
+    is_stuck = False
+    if len(last_few_positions) > 0 and last_few_positions is not None:
+        changes_in_x = 0
+        changes_in_y = 0
+        for i in range(1,len(last_few_positions)):
+            changes_in_x += abs(last_few_positions[i][0] - last_few_positions[i - 1][0])
+            changes_in_y += abs(last_few_positions[i][1] - last_few_positions[i - 1][1])
         
-        # Checking if the location hasn't changed alone is not sufficient 
-        # since the robot could be moving very slowly => the algorithm thinks it is stuck
-        is_stuck = False
-        if len(last_few_positions) > 0 and last_few_positions is not None:
-            changes_in_x = 0
-            changes_in_y = 0
-            for i in range(1,len(last_few_positions)):
-                changes_in_x += abs(last_few_positions[i][0] - last_few_positions[i - 1][0])
-                changes_in_y += abs(last_few_positions[i][1] - last_few_positions[i - 1][1])
-            
-            # if accumulated changes in both coordinates are less than a very small number, 
-            # the robot is probably stuck
-            is_in_same_place = changes_in_x < 0.05 and changes_in_y < 0.05
+        # if accumulated changes in both coordinates are less than a very small number, 
+        # the robot is probably stuck
+        is_in_same_place = changes_in_x < 0.025 and changes_in_y < 0.025
 
-            # only check if robot's front is stuck, since if its side is stuck, it could rescue itself by turning the opposite direction
-            is_near_obstacle = robot_state["Front"] == "Close" 
-
-            # the robot is consider stuck of it is near an obstacle and hasn't changed position in a while
-            is_stuck = is_near_obstacle and is_in_same_place
-        return is_stuck
+        # only check if robot's front is stuck, since if its side is stuck, it could rescue itself by turning the opposite direction
+        # is_near_obstacle = robot_state["Front"] == "Close" 
+        is_near_obstacle = True
+        # the robot is consider stuck of it is near an obstacle and hasn't changed position in a while
+        is_stuck = is_near_obstacle and is_in_same_place
+    return is_stuck
 
 
 def is_terminal_state(player_type, game_timeout, pursuer_stuck, evader_stuck, distance_between_players, verbose=True, allow_player_rescue = False):
-        if distance_between_players <= 0.3: 
-            is_terminal = True
-            terminal_status = "Terminated because TAGGED. Pursuer Won"
-        elif game_timeout:
-            is_terminal = True
-            terminal_status = "Terminated because game-timeot. Evader won"
-        # if we are just training the pursuer, even if the evader gets stuck
-        # we still let the pursuer run until it catches the evader, or gets stucks itself
-        elif player_type == "pursuer" and pursuer_stuck and not allow_player_rescue:
-            is_terminal = True
-            terminal_status = "Terminated because pursuer is STUCK"
-        # when training the evader, terminate when the evader gets stuck
-        elif player_type == "evader" and evader_stuck and not allow_player_rescue:
-            is_terminal = True
-            terminal_status = "Terminated because evader is STUCK"
-        else:
-            is_terminal = False 
-        
-        if is_terminal and verbose:
-            rospy.loginfo(terminal_status)
-        
-        return is_terminal
+    '''
+    This function takes if agent's current state is a terminal state:
+        - If the distance between two players are within a small threshold (0.3 units), we count it as a TAGGED terminal state
+        - If we have reached the episode time limit.
+        - If the agent gets stuck AND is not allow to rescue itself
 
-def train(train_type, pursuer_agent, evader_agent, total_episodes = 1000, starting_epsilon = 0.2, max_epsilon = 0.9, epsilon_annealing_rate = 1.0001, episode_time_limit = 30, time_to_apply_action=0.5, do_initial_test = False, allow_player_manual_rescue= False):
+    '''
+    if distance_between_players <= 0.3: 
+        is_terminal = True
+        terminal_status = "Terminated because TAGGED. Pursuer Won"
+    elif game_timeout:
+        is_terminal = True
+        terminal_status = "Terminated because game-timeot. Evader won"
+    # if we are just training the pursuer, even if the evader gets stuck
+    # we still let the pursuer run until it catches the evader, or gets stucks itself
+    elif player_type == "pursuer" and pursuer_stuck and not allow_player_rescue:
+        is_terminal = True
+        terminal_status = "Terminated because pursuer is STUCK"
+    # when training the evader, terminate when the evader gets stuck
+    elif player_type == "evader" and evader_stuck and not allow_player_rescue:
+        is_terminal = True
+        terminal_status = "Terminated because evader is STUCK"
+    else:
+        is_terminal = False 
     
+    if is_terminal and verbose:
+        rospy.loginfo(terminal_status)
+    
+    return is_terminal
+
+def train(train_type, pursuer_agent, evader_agent, total_episodes = 10000, starting_epsilon = 0.2, max_epsilon = 0.9, epsilon_annealing_rate = 1.0001, episode_time_limit = 30, time_to_apply_action=0.5, do_initial_test = False, allow_player_manual_rescue= False):
+    '''
+    The train() method takes in an pursuer agent object, an evader agent object and train the agent specified by train_type parameter against the other. 
+    
+    Parameters:
+
+    Training-Mode parameters
+        - train_type: takes value of either "pursuer" or "evader". Method will return if invalid train_type value is given
+        - pursuer_agent: takes an pursuing Agent object.
+        - evader_agent: takes an pursuing Agent object.
+        - total_episodes (optional): number of episodes to train the agents. Defauls to 10000 if not specified.
+        - episode_time_limit (optional): maximum time limit (in seconds) of a training episode/game. Defauts to 30 seconds.
+        - time_to_apply_action (optional): number of seconds to let the agent carry out its selected action. Deaults to 0.5 second(s)
+        - do_initial_test (optional): Whether or not to do an intial test at the beginning of training. Not very helpful if we are training the agent from scratch. Defaults to False
+        - allow_player_manual_rescue (optional) = Whether or not to allow the agent we are training to rescue itself. Defaults to False
+
+
+    We use annealing epsilon to progressively makes the agent being trained exploits more of its knowledge as it learns about the game
+        - starting_epsilon (optional): defaults to 0.2 
+        - max_epsilon (optional): defaults to 0.9
+        - epsilon_annealing_rate: defaults to 1.0001
+    
+    '''
     if train_type not in ["pursuer", "evader"]:
         rospy.loginfo("Unrecognized train type. Either \"puruser\" or \"evader\"")
         return 
@@ -437,6 +497,7 @@ def train(train_type, pursuer_agent, evader_agent, total_episodes = 1000, starti
     total_loss_dqn = 0.0
     total_Q = 0.0
     num_batches = 0.0
+
     while current_episode < total_episodes:
         
         pursuer_state_discrete = pursuer_agent.get_current_state_discrete()
@@ -455,6 +516,7 @@ def train(train_type, pursuer_agent, evader_agent, total_episodes = 1000, starti
 
         global RESCUE_EVADER_FAILED
         global RESCUE_PURSUER_FAILED
+        
         RESCUE_EVADER_FAILED = False
         RESCUE_PURSUER_FAILED = False
         
@@ -468,6 +530,7 @@ def train(train_type, pursuer_agent, evader_agent, total_episodes = 1000, starti
         # do an intial test at epsidode 0 if specified
         if (current_episode == 0 and do_initial_test) or (current_episode % 400 == 0 and current_episode != 0):
             rospy.loginfo("Testing policy learned so far")
+            # code to train appropriate player
             if train_type == "pursuer":
                 test_reward, num_tagged, num_stuck, num_timeout = test("pursuer", pursuer_agent = pursuer_agent, evader_agent = evader_agent, total_episodes = 40, episode_time_limit=episode_time_limit, time_to_apply_action=time_to_apply_action, allow_evader_manual_rescue= True)
             elif train_type == "evader":
@@ -493,6 +556,9 @@ def train(train_type, pursuer_agent, evader_agent, total_episodes = 1000, starti
 
         accumulated_reward = 0
         
+
+        # episode also terminates if we have reached the time limit
+
         global GAME_TIMEOUT
         GAME_TIMEOUT = False
 
@@ -500,8 +566,14 @@ def train(train_type, pursuer_agent, evader_agent, total_episodes = 1000, starti
         time_elapsed = rospy.Duration(secs=0)
         time_spent_on_manual_rescue = rospy.Duration(secs=0)
         
+        # the user is given an option whether or not an agent hitting an obstacle
+        # is considered a terminal state (in the case we allow them to do manual rescue/reversal)
+        # these two global variables keep track of how many time each agent collides with the obstacle
         global NUM_TIMES_EVADER_STUCK_IN_EPISODE
         NUM_TIMES_EVADER_STUCK_IN_EPISODE = 0
+
+        global NUM_TIMES_PURSUER_STUCK_IN_EPISODE
+        NUM_TIMES_PURSUER_STUCK_IN_EPISODE = 0
 
         is_terminal = False
         
@@ -523,28 +595,34 @@ def train(train_type, pursuer_agent, evader_agent, total_episodes = 1000, starti
             PURSUER_WAS_STUCK_BUT_RESCUED = False
             EVADER_WAS_STUCK_BUT_RESCUED = False
 
-            # initialize a seperate thread to handle rescuing the opponent should it gets stuck
+            # initialize a seperate thread to allow opponent to rescue itself should it gets stuck
             # since we are training our player, we assume the opponent is already good
-            # training episode would only terminate if the player gets stuck but not when the opponent gets stuck 
+            # thus, training episode would only terminate if the player gets stuck but not when the opponent gets stuck 
             pursuer_rescue_thread = threading.Thread(target=manual_rescue, args = (pursuer_agent, 1.5))
             evader_rescue_thread = threading.Thread(target=manual_rescue, args= (pursuer_agent, 1.5))
             
             # check if robots are stuck, the robot is considered stuck if it has been in the same location for >= 1.5 seconds
-            if len(last_few_pursuer_positions) == int(1.5/time_to_apply_action):
+            # Code logic: the following code checks if the pursuer has been stuck in the same location for the past 1.5 seconds
+            if len(last_few_pursuer_positions) >= int(1.5/time_to_apply_action):
                 PURSUER_STUCK = is_stuck(last_few_pursuer_positions, robot_state= pursuer_agent.get_current_state_discrete())
                 if PURSUER_STUCK and not GAME_TIMEOUT:
+                    # this global variable is only meaningful if we allow the pursuer to rescue itself during training
+                    NUM_TIMES_PURSUER_STUCK_IN_EPISODE += 1
+                    # if we are training the evader, the pursuing opponent could manually reverse to rescue itself when stuck
+                    # OR
+                    # if we are training the pursuer and we allow the pursuer to rescue ifself
                     if train_type == "evader" or (train_type == "pursuer" and allow_player_manual_rescue): 
-                        # if we are training the evader, the pursuer could manually reverse to rescue itself when stuck
-                        # and resume chasing the evader
                         # rescue_pursuer_start_time = rospy.Time.now()
                         pursuer_rescue_thread.start()
                         last_few_pursuer_positions = []
                         # get new state after reversal
                         PURSUER_STUCK = is_stuck(last_few_pursuer_positions, robot_state= pursuer_agent.get_current_state_discrete())
+                # remove oldest position of evader
                 if len(last_few_pursuer_positions) != 0:
                     del last_few_pursuer_positions[0]
-                
-            if len(last_few_evader_positions) == int(1.5/time_to_apply_action):
+            
+            # Code logic: the following code checks if the evader has been stuck in the same location for the past 1.5 seconds    
+            if len(last_few_evader_positions) >= int(1.5/time_to_apply_action):
                 EVADER_STUCK = is_stuck(last_few_evader_positions, robot_state= evader_agent.get_current_state_discrete())
                 if EVADER_STUCK and not GAME_TIMEOUT:
                     NUM_TIMES_EVADER_STUCK_IN_EPISODE += 1
@@ -554,15 +632,19 @@ def train(train_type, pursuer_agent, evader_agent, total_episodes = 1000, starti
                         # or we could train it against an evader which uses a q-table with no reversal actions.
                         # when we are training against the latter, we have to call the manual rescue thread should
                         # the evader gets stuck since it does not have the reversal action in its q-table
+                        
                         # rescue_evader_start_time = rospy.Time.now()
                         evader_rescue_thread.start()
                         last_few_evader_positions = []
                         # get new state after reversal
                         EVADER_STUCK = is_stuck(last_few_evader_positions, robot_state= evader_agent.get_current_state_discrete())
-                
+                # remove oldest position of evader
                 if len(last_few_evader_positions) != 0:
                     del last_few_evader_positions[0]
 
+     
+            # add latest (x,y) coordinates of the two agents to keep track of their locations
+            # and help check whether they are stuck
             last_few_pursuer_positions.append(PURSUER_POSITION[:2])
             last_few_evader_positions.append(EVADER_POSITION[:2])
             
@@ -572,23 +654,20 @@ def train(train_type, pursuer_agent, evader_agent, total_episodes = 1000, starti
                     # while waiting for opponent pursuer to rescue itself, the agent evader continues learninng
                     evader_agent.learn(epsilon = epsilon, time_to_apply_action = time_to_apply_action)
                 elif train_type == "pursuer":
+                    # else if we are training the pursuer and allow it to rescue itself, the opponent evader keeps following its policy
                     evader_agent.follow_policy(time_to_apply_action=time_to_apply_action)
-                
                 PURSUER_WAS_STUCK_BUT_RESCUED = True
-                # rescue_stop_time = rospy.Time.now()
-                # time_spent_on_manual_rescue += (rescue_stop_time - rescue_pursuer_start_time)
+               
 
             while evader_rescue_thread.is_alive():
                 if train_type == "pursuer":
                     # continue training pursuer while opponent evader rescue itself
                     pursuer_agent.learn(epsilon = epsilon, time_to_apply_action = time_to_apply_action)
                 elif train_type == "evader":
+                     # else if we are training the evader and allow it to rescue itself, the opponent pursuer keeps following its policy
                     pursuer_agent.follow_policy(time_to_apply_action=time_to_apply_action)
-                
                 EVADER_WAS_STUCK_BUT_RESCUED = True
 
-                # evader_rescue_stop_time = rospy.Time.now()
-                # time_spent_on_manual_rescue += (evader_rescue_stop_time - rescue_evader_start_time)
 
             if not GAME_TIMEOUT and (RESCUE_PURSUER_FAILED or RESCUE_EVADER_FAILED):
                 # if failed to rescue, break out and restart episode
@@ -600,18 +679,23 @@ def train(train_type, pursuer_agent, evader_agent, total_episodes = 1000, starti
                     rospy.loginfo("RESCUE EVADER FAILED")
                 break
 
-
+            # starts opponent decision making thread
+            # so the main thread controls the behavior of the agent being trained
+            # and the other thread makes the opponent to follow its policy
+            # THIS IS NOT A THREAD BOMB since agent.follow_policy() does not call any further thread
+            # and terminate after select an action (for 1 time step)
             opponent_decision_making_thread = threading.Thread(target = opponent_agent.follow_policy, args=(time_to_apply_action,))
             opponent_decision_making_thread.start()
 
             # get current state before agent learns and carry out action
             current_state_discretized = player_agent.get_current_state_discrete()
 
-
-
-            # have current robot train using their respective learning algorithm
+            # have current robot train using their respective learning algorithm (Q-Learning, DQN)
+            # the agent.learn() method returns a tuple of different metrics to evaluate the agent's learning.
+            # please refer to the DQN paper by V.Mihn to understand what the metrics means
             learning_report = player_agent.learn(epsilon = epsilon, time_to_apply_action = time_to_apply_action)
             
+            # unpack the metrics 
             if player_agent.agent_algorithm == "DQN":
                 reward, _ , _, turn_action, rmse_current_batch, avg_Q_current_batch = learning_report
                 # Accumulate total loss for Deep Q Network agent
@@ -627,7 +711,8 @@ def train(train_type, pursuer_agent, evader_agent, total_episodes = 1000, starti
             # accumulate rewards
             accumulated_reward += reward
 
-            # accumulate number of times each scenarios happen to check for state-action convergence
+            # accumulate number of times each scenario happen
+            # this is to check for state-action convergence and for plotting purposes
             if "Left" in current_state_discretized["Opponent Position"]:
                 if turn_action >= 20:
                     num_times_go_left_opponent_is_left += 1
@@ -649,15 +734,9 @@ def train(train_type, pursuer_agent, evader_agent, total_episodes = 1000, starti
                     num_times_go_right_opponent_is_front += 1
                 else:
                     num_times_go_front_opponent_is_front += 1
-            # else:
-            #     if turn_action in [60, 40, 20]:
-            #         num_times_go_left_opponent_is_bottom += 1
-            #     elif turn_action in [-60, -40, -20]:
-            #         num_times_go_right_opponent_is_bottom += 1
-            #     else:
-            #         num_times_go_front_opponent_is_bottom += 1   
+            
         
-            # follow_policy(opponent_to_test, q_table_opponent)
+            # wait for opponent decision-thread to finish before continuing executing code
             opponent_decision_making_thread.join()
             
             # check if this is terminal state
@@ -676,8 +755,8 @@ def train(train_type, pursuer_agent, evader_agent, total_episodes = 1000, starti
         training_reward += accumulated_reward
         accumulated_num_stuck_by_evader += NUM_TIMES_EVADER_STUCK_IN_EPISODE
 
+        # plot learning curve using the average reward each 200 training episodes
         if current_episode % 200 == 0:
-            # plot learning curve using the average reward each 250 training episodes
             training_reward /= 200.0
             plotter.plot_learning_curve(plotter.learning_curve, current_episode, training_reward)
 
@@ -690,14 +769,13 @@ def train(train_type, pursuer_agent, evader_agent, total_episodes = 1000, starti
             # RESET TRAINING REWARD
             training_reward = 0.0
             
-            
+            # if we are training the agent via Deep Q-Networks
             if player_agent.agent_algorithm == "DQN":
-                # plot the mean squared loss per mini batch for every 250 episodes
-                # print( total_loss_dqn/(20.0))
+                # plot the MSE per mini batch averaged over 200 episodes
                 plotter.plot_learning_curve(plotter.avg_loss_curve, current_episode, total_loss_dqn/num_batches)
                 total_loss_dqn = 0.0
                 
-                # plot the average Q-value norm for every 250 episodes
+                # plot the average Q-value norm averaged over 200 episodes
                 plotter.plot_learning_curve(plotter.avg_q_curve, current_episode, total_Q/num_batches)
                 total_Q = 0.0
                 
@@ -707,7 +785,7 @@ def train(train_type, pursuer_agent, evader_agent, total_episodes = 1000, starti
             # plot the average distance at terminal state for every 250 episodes
             if train_type == "pursuer":
                 plotter.plot_learning_curve(plotter.average_distance_at_terminal_curve, current_episode, accumulated_distance_between_players_at_end/200.0)
-                # reset
+                # reset accumulating variables
                 accumulated_distance_between_players_at_end = 0
             elif train_type == "evader" and not allow_player_manual_rescue:
                 plotter.plot_learning_curve(plotter.average_time_at_terminal_curve, current_episode, (accumulated_time_survived_by_evader/200.0).to_sec())
@@ -764,7 +842,23 @@ def train(train_type, pursuer_agent, evader_agent, total_episodes = 1000, starti
         rospy.loginfo("Saved Agent_{}".format(player))
 
 
-def test(player, pursuer_agent, evader_agent, total_episodes = 2, episode_time_limit=30, time_to_apply_action = 0.5, allow_pursuer_manual_rescue= False, allow_evader_manual_rescue = False):
+def test(player_to_test, pursuer_agent, evader_agent, total_episodes = 2, episode_time_limit=30, time_to_apply_action = 0.5, allow_pursuer_manual_rescue= False, allow_evader_manual_rescue = False):
+    '''
+    The test() method takes in an pursuer agent object, an evader agent object and test the agent specified by player_to_test parameter against the other.
+    During testing, the epsilon is raised 0.95 to encourage high exploitation but still leaves room for a little exploration.
+    
+    Parameters:
+        - player_to_test: takes value of either "pursuer" or "evader". Method will return if invalid value is given.
+        - pursuer_agent: takes an pursuing Agent object.
+        - evader_agent: takes an pursuing Agent object.
+        - total_episodes (optional): number of episodes to test the agents. Defauls to 2 if not specified.
+        - episode_time_limit (optional): maximum time limit (in seconds) of a testing episode/game. Defauts to 30 seconds.
+        - time_to_apply_action (optional): number of seconds to let the agent carry out its selected action. Deaults to 0.5 second(s)
+        - allow_pursuer_manual_rescue (optional) = Whether or not to allow the pursuer to rescue itself. Defaults to False.
+        - allow_evader_manual_rescue (optional) = Whether or not to allow the pursuer to rescue itself. Defaults to False.
+    '''
+    
+    
     current_episode = 0
     current_state = None
     accumulated_reward = 0 
@@ -796,7 +890,7 @@ def test(player, pursuer_agent, evader_agent, total_episodes = 2, episode_time_l
 
         # fetch new state when robots respawn for a new testing episode
         while current_state is None or current_state["Opponent Position"] == "Tagged":
-            if player == "pursuer":
+            if player_to_test == "pursuer":
                 opponent = "evader"
                 player_agent = pursuer_agent
                 opponent_agent = evader_agent
@@ -843,15 +937,15 @@ def test(player, pursuer_agent, evader_agent, total_episodes = 2, episode_time_l
                 num_timeout += 1
 
             # check if robots are stuck, the robot is considered stuck if it has been in the same location for >= 1.50 seconds
-            if len(last_few_pursuer_positions) == int(1.5/time_to_apply_action):
+            if len(last_few_pursuer_positions) >= int(1.5/time_to_apply_action):
                 PURSUER_STUCK = is_stuck(last_few_pursuer_positions, robot_state= pursuer_agent.get_current_state_discrete())
                 if PURSUER_STUCK and not GAME_TIMEOUT:
                     num_pursuer_stuck += 1
                     # starts rescue thread if we are either
                     # testing how the robot performs with manual rescue on
                     # or if we are testing the evader against an good, adversarial pursuer
-                    if (player == "pursuer" and allow_pursuer_manual_rescue) or (player == "evader"):
-                        pursuer_rescue_start_time = rospy.Time.now()
+                    if (player_to_test == "pursuer" and allow_pursuer_manual_rescue) or (player_to_test == "evader"):
+                        # pursuer_rescue_start_time = rospy.Time.now()
                         pursuer_rescue_thread.start()
                         last_few_pursuer_positions = []
                         # get new state after reversal
@@ -859,17 +953,17 @@ def test(player, pursuer_agent, evader_agent, total_episodes = 2, episode_time_l
                 if len(last_few_pursuer_positions) != 0:
                     del last_few_pursuer_positions[0]
                 
-            if len(last_few_evader_positions) == int(1.5/time_to_apply_action):
+            if len(last_few_evader_positions) >= int(1.5/time_to_apply_action):
                 EVADER_STUCK = is_stuck(last_few_evader_positions, robot_state= evader_agent.get_current_state_discrete())
                 if EVADER_STUCK and not GAME_TIMEOUT:
                     num_evader_stuck += 1
-                    if (player == "pursuer" and evader_agent.agent_algorithm != "Random-Walk") or (player == "evader" and allow_evader_manual_rescue): 
-                        # when training the pursuer, we have two modes
-                        # we could either train it against a random-walking evader that has a reversal already coded in
-                        # or we could train it against an evader which uses a q-table with no reversal actions.
-                        # when we are training against the latter, we have to call the manual rescue thread should
+                    if (player_to_test == "pursuer" and evader_agent.agent_algorithm != "Random-Walk") or (player_to_test == "evader" and allow_evader_manual_rescue): 
+                        # when testing the pursuer, we have two modes
+                        # we could either test it against a random-walking evader that has a reversal already coded in
+                        # or we could test it against an evader which uses a q-table with no reversal actions.
+                        # when we are testing against the latter, we have to call the manual rescue thread should
                         # the evader gets stuck since it does not have the reversal action in its q-table
-                        evader_rescue_start_time = rospy.Time.now()
+                        # evader_rescue_start_time = rospy.Time.now()
                         evader_rescue_thread.start()
                         last_few_evader_positions = []
                         # get new state after reversal
@@ -885,20 +979,12 @@ def test(player, pursuer_agent, evader_agent, total_episodes = 2, episode_time_l
             # wait for the rescue threads to join
             while pursuer_rescue_thread.is_alive():
                 # while waiting for pursuer to unstuck itself, continue moving the evader
-                
-                evader_agent.follow_policy(time_to_apply_action=time_to_apply_action,  verbose = (player == "evader"))
-                # move_robot("evader", 0,0)
-                # pursuer_rescue_thread.join()
-                # pursuer_rescue_stop_time = rospy.Time.now()
-                # time_spent_on_manual_rescue += (pursuer_rescue_stop_time - pursuer_rescue_start_time)
+                evader_agent.follow_policy(time_to_apply_action=time_to_apply_action,  verbose = (player_to_test == "evader"))
                 PURSUER_WAS_STUCK_BUT_RESCUED = True
             
             while evader_rescue_thread.is_alive():
                 # while waiting for evader to unstuck itself, continue moving the pursuer
-                pursuer_agent.follow_policy(time_to_apply_action=time_to_apply_action, verbose = (player == "pursuer"))
-                # evader_rescue_thread.join()
-                # evader_rescue_stop_time = rospy.Time.now()
-                # time_spent_on_manual_rescue += (evader_rescue_stop_time - evader_rescue_start_time)
+                pursuer_agent.follow_policy(time_to_apply_action=time_to_apply_action, verbose = (player_to_test == "pursuer"))
                 EVADER_WAS_STUCK_BUT_RESCUED = True
             
             # check if rescue threads were successful at rescuing the robots from being stuck
@@ -932,7 +1018,7 @@ def test(player, pursuer_agent, evader_agent, total_episodes = 2, episode_time_l
             if not GAME_TIMEOUT and current_state["Opponent Position"] == "Tagged":
                 num_tagged += 1
 
-            is_terminal = is_terminal_state(player_type=player, game_timeout= GAME_TIMEOUT ,pursuer_stuck= PURSUER_STUCK, evader_stuck= EVADER_STUCK, \
+            is_terminal = is_terminal_state(player_type=player_to_test, game_timeout= GAME_TIMEOUT ,pursuer_stuck= PURSUER_STUCK, evader_stuck= EVADER_STUCK, \
                                     distance_between_players = DISTANCE_BETWEEN_PLAYERS, verbose=True)
 
         if not RESCUE_EVADER_FAILED and not RESCUE_PURSUER_FAILED:    
@@ -941,18 +1027,18 @@ def test(player, pursuer_agent, evader_agent, total_episodes = 2, episode_time_l
     # print diagnostic test phase details   
     rospy.loginfo("\nTEST PHASE DETAIL\n")    
     rospy.loginfo("TEST PHASE: {} times pursuer tagged the evader out of {} testing rounds".format(num_tagged, total_episodes))
-    if player == "pursuer" and allow_pursuer_manual_rescue:
+    if player_to_test == "pursuer" and allow_pursuer_manual_rescue:
         rospy.loginfo("TEST PHASE: {} times the pursuer have to use the manual rescuing function to unstuck itself out of {} testing rounds".format(num_pursuer_stuck, total_episodes))
-    elif player == "pursuer":
+    elif player_to_test == "pursuer":
         rospy.loginfo("TEST PHASE: {} times the pursuer got stuck out of {} testing rounds".format(num_pursuer_stuck, total_episodes))
-    elif player == "evader" and allow_pursuer_manual_rescue:
+    elif player_to_test == "evader" and allow_pursuer_manual_rescue:
         rospy.loginfo("TEST PHASE: {} times the evader have to use the manual rescuing function to unstuck itself out of {} testing rounds".format(num_evader_stuck, total_episodes))
     else:
         rospy.loginfo("TEST PHASE: {} times the evader got stuck out of {} testing rounds".format(num_evader_stuck, total_episodes))
     rospy.loginfo("TEST PHASE: {} times the evader survived the match against the pursuer (timeout) out of {} testing rounds".format(num_timeout, total_episodes))
     rospy.loginfo("-"*50)
     
-    if player == "pursuer":
+    if player_to_test == "pursuer":
         num_stuck = num_pursuer_stuck
     else:
         num_stuck = num_evader_stuck
@@ -989,36 +1075,24 @@ def main():
     
     # create action space
     action_space = []
-    translation_actions= [0.1, 0.2]
+    # give the agent the ability to reverse, stop, and go forward
+    translation_actions= [-0.2, -0.1, 0, 0.1, 0.2]
     rotational_actions = [-60, -40, -20, -1, 0, 1, 20, 40, 60]
     _get_permutations(0, [translation_actions, rotational_actions] ,list(), 2, action_space)
 
     # create new DQN agent
-    # pursuer_agent = DQN_Agent(agent_type = "pursuer", input_layer_size = 9, output_layer_size = len(translation_actions)* len(rotational_actions), hidden_layers = [50,50,50],\
-    #     action_space = action_space, activation_function = relu, activation_function_derivative = relu_derivative, num_steps_to_update_network = 2000, batch_size = 64,
-    #     learning_rate = 0.00025, discount_factor = 0.99, get_agent_lidar_readings = get_lidar_readings, agent_take_action_function = robot_take_action, get_game_information= get_game_information)
+    pursuer_agent = DQN_Agent(agent_type = "pursuer", input_layer_size = 9, output_layer_size = len(translation_actions)* len(rotational_actions), hidden_layers = [50,50,50,50,50],\
+        action_space = action_space, activation_function = relu, activation_function_derivative = relu_derivative, num_steps_to_update_network = 2000, batch_size = 64,
+        learning_rate = 0.00025, discount_factor = 0.99, get_agent_lidar_readings = get_lidar_readings, agent_take_action_function = robot_take_action, get_game_information= get_game_information)
 
-    # # load in existing DQN agent
-    pursuer_agent = DQN_Agent.load_agent("DQN_pursuer_best_testing.txt")
+    # load in existing DQN agent
+    # pursuer_agent = DQN_Agent.load_agent("DQN_pursuer_best_training_80%_ttr_5_pillars_25k.txt")
 
     # load in random-walking agent
-    evader_agent = Random_Walking_Agent("evader", get_lidar_readings, robot_take_action, get_game_information, 0.20)
+    evader_agent = Random_Walking_Agent("evader", get_lidar_readings, robot_take_action, get_game_information, 0.25)
     
-
-    # load in Q-Learning evader agent
-    # evader_agent = Simple_Q_Learning_Agent("evader", 0.2, 0.8,[],[], get_lidar_readings, robot_take_action, get_game_information)
-    # successfully_loaded_evader = evader_agent.load_agent("q_table_evader_best_testing.txt")
-    
-    # train("pursuer", pursuer_agent, evader_agent, total_episodes= 30000, starting_epsilon=0.2, max_epsilon=0.95, episode_time_limit=45, time_to_apply_action= 0.5, do_initial_test=False, allow_player_manual_rescue=False)
-    # if successfully_loaded_pursuer and successfully_loaded_evader:
-    test("pursuer", pursuer_agent, evader_agent, total_episodes=100, episode_time_limit= 90, time_to_apply_action=0.5, allow_evader_manual_rescue= True, allow_pursuer_manual_rescue=False)
-    
-    # rate = rospy.Rate(1)
-    # while not rospy.is_shutdown():
-    #     state = pursuer_agent.get_current_state_continuous()
-    #     print(state)
-    #     pursuer_agent.reward_function(state)
-    #     rate.sleep()
+    train("pursuer", pursuer_agent, evader_agent, total_episodes= 100000, starting_epsilon=0.2, max_epsilon=0.95, episode_time_limit=45, time_to_apply_action= 0.5, do_initial_test=False, allow_player_manual_rescue=False)
+    # test("pursuer", pursuer_agent, evader_agent, total_episodes=100, episode_time_limit= 90, time_to_apply_action=0.5, allow_evader_manual_rescue= True, allow_pursuer_manual_rescue=False)
 
 if __name__ == "__main__":
     main()

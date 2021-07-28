@@ -27,7 +27,7 @@ class Learning_Plotter:
         self.ax[0,0].set_xlabel("Training episode")
         self.ax[0,0].set_ylabel("Accumulated rewards")
         self.ax[0,0].set_xlim(0 , total_episodes)
-        self.ax[0,0].set_ylim(-100,100)
+        self.ax[0,0].set_ylim(-100, 60)
         self.ax[0,0].set_title("Accumulated Rewards vs Training episodes")
         self.ax[0,0].legend(loc="upper left")
         self.ax[0,0].axhline(y= 0, color = "g", linestyle = "-")
@@ -120,7 +120,7 @@ class Learning_Plotter:
             self.ax[2,0].set_xlabel("Number of episodes")
             self.ax[2,0].set_ylabel("Average Q-value")
             self.ax[2,0].set_xlim(0, total_episodes)
-            self.ax[2,0].set_ylim(-10,10)
+            self.ax[2,0].set_ylim(-50,50)
             self.ax[2,0].legend(loc="upper left")
             self.ax[2,0].set_title("Average Q-value of all actions across training episodes")
 
@@ -129,7 +129,7 @@ class Learning_Plotter:
             self.ax[2,1].set_xlabel("Number of Episodes")
             self.ax[2,1].set_ylabel("Root Mean Squared Loss")
             self.ax[2,1].set_xlim(0, total_episodes)
-            self.ax[2,1].set_ylim(0, 10)
+            self.ax[2,1].set_ylim(0, 20)
             self.ax[2,1].legend(loc="upper right")
             self.ax[2,1].set_title("RMSE Per Episode of Q-Network's predictions")
 

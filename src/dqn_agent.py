@@ -16,6 +16,9 @@ import os
 
 
 class NN_Layer:
+    '''
+    Implementation of a single Neural Network layer.
+    '''
     def __init__(self, num_input_nodes, num_output_nodes, activation_function, activation_function_derivative, learning_rate):
         self.num_input_nodes = num_input_nodes
         self.num_output_nodes = num_output_nodes
@@ -176,6 +179,9 @@ class DQN_Agent(Base_Agent):
 
 
     def get_current_state_discrete(self, verbose = False):
+        '''
+        This method takes the agent's LIDAR Readings and discretize them into a discrete state using helper functions. Please refer to Khai Lai's paper for the code's logic.
+        '''
         lidar_readings = None 
         while(lidar_readings == None):
             # get lidar range-readings from game environment
@@ -237,6 +243,11 @@ class DQN_Agent(Base_Agent):
         
 
     def get_opponent_position_rating(self, player_A, player_B):
+        '''
+        The method performs different Linear Algebra manuevers to get a discretized rating 
+        of where player_B is from the perspective of player_A. Please see Khai Lai's paper for more detailed
+        explanation
+        '''
 
         # get pursuer and evader location from game environment
         pursuer_position = self.get_game_information("pursuer_position")
@@ -373,6 +384,10 @@ class DQN_Agent(Base_Agent):
 
 
     def get_current_state_continuous(self, verbose = False):
+        '''
+        This method takes the agent's LIDAR Readings and returns a tuple of different angular sectors' minimum range. This 
+        continuous is to be fed into the network's input layer.
+        '''
         lidar_readings = None 
         while(lidar_readings == None):
             # get lidar range-readings from game environment
@@ -431,9 +446,17 @@ class DQN_Agent(Base_Agent):
 
 
     def _memorize_experience(self, current_state, action, new_state, reward, is_terminal):
+        '''
+        Appends the DQN agent's latest experience to the relay buffer.
+        '''
         self.replay_buffer.append(np.array([current_state, action, new_state, reward, is_terminal]))
 
     def _experience_replay(self, mini_batch_size, verbose = True):
+        '''
+        Performs one step of Experience Replay (using Stochastic Gradient Descent) to fit 
+        the network's predictions of state-action pairs ' Q-Values against the "target" Q-values
+        found by the Bellman Equation. 
+        '''
         if len(self.replay_buffer) > mini_batch_size:
 
             if self.num_time_steps_without_update % self.num_steps_to_update_network == 0:
@@ -448,9 +471,6 @@ class DQN_Agent(Base_Agent):
               
                 # reset time step
                 self.num_time_steps_without_update = 0
-            
-            # rospy.loginfo("Target network's weight {}".format(self.target_network.network_layers[0].weights[0]))
-            
             
             # uniformly sample random experiences in the past to decorrelate learning with regards to experiences to follow one another
             # use Combined Experience Replay as described by https://arxiv.org/pdf/1712.01275.pdf
@@ -507,7 +527,7 @@ class DQN_Agent(Base_Agent):
             return (accumulated_loss/mini_batch_size)**0.5, accumulated_current_q/mini_batch_size
 
     def _optimize_network(self,current_q_values, target_q_values):
-        
+        # perform back-propagation to adjust network's weights
         residual =  (target_q_values - current_q_values)
         # perform backpropagation to adjust network's weights
         for layer_idx in range(len(self.network_layers))[::-1]:
